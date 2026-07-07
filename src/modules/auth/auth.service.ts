@@ -369,6 +369,14 @@ export class AuthService {
     const isMobile = /^[6-9]\d{9}$/.test(identifier);
     const message = `Your RailBite verification code is ${otp}. It is valid for ${OTP_TTL_MINUTES} minutes. Do not share this code with anyone.`;
 
+    // No SMS/email provider is configured in local dev (MSG91/SendGrid keys
+    // are blank), so the OTP would otherwise be unrecoverable. Surface it on
+    // the server console only outside production.
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.log(`[DEV OTP] ${identifier} (${purpose}) => ${otp}`);
+    }
+
     dispatchNotificationAsync({
       userId: userId ?? 'unknown',
       channel: isMobile ? NotificationChannel.SMS : NotificationChannel.EMAIL,

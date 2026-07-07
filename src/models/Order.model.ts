@@ -40,6 +40,7 @@ export interface IOrder extends Document {
   status: OrderStatus;
   statusHistory: IOrderStatusHistoryEntry[];
   cancellationReason?: string;
+  idempotencyKey: string;
   isDeleted: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -88,6 +89,7 @@ const orderSchema = new Schema<IOrder>(
     },
     statusHistory: { type: [statusHistorySchema], default: [] },
     cancellationReason: { type: String },
+    idempotencyKey: { type: String, required: true, unique: true },
     isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true },

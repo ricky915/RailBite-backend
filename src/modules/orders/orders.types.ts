@@ -6,6 +6,14 @@ export interface OrderStatusHistoryEntryView {
   note?: string;
 }
 
+export interface OrderItemView {
+  menuItemId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  itemTotal: number;
+}
+
 export interface OrderDetailView {
   id: string;
   orderId: string;
@@ -17,6 +25,7 @@ export interface OrderDetailView {
   status: OrderStatus;
   paymentMode: PaymentMode;
   paymentStatus: PaymentStatus;
+  items: OrderItemView[];
   grandTotal: number;
   statusHistory: OrderStatusHistoryEntryView[];
   createdAt: Date;

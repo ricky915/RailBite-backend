@@ -65,6 +65,8 @@ export const MAX_REVIEW_PHOTO_UPLOAD_SIZE_MB = 5;
 
 // --- Currency ---
 export const PAISE_PER_RUPEE = 100;
+export const GST_RATE_PERCENT = 5;
+export const PLATFORM_FEE_PAISE = 0;
 
 // --- Order ID Generation ---
 export const ORDER_ID_PREFIX = 'RB';
