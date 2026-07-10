@@ -1,138 +1,90 @@
 import { Router } from 'express';
+import multer from 'multer';
 
-import { authMiddleware } from '@/middleware/auth.middleware';
+import { requireAuth } from '@/middleware/auth.middleware';
 import { requireRole } from '@/middleware/role.middleware';
 import { validate } from '@/middleware/validate.middleware';
-import { UsersController } from '@/modules/users/users.controller';
-import {
-  changePasswordSchema,
-  listUsersQuerySchema,
-  requestMobileChangeSchema,
-  updateProfileSchema,
-  updateUserStatusSchema,
-  userIdParamsSchema,
-} from '@/modules/users/users.dto';
-import { UsersRepository } from '@/modules/users/users.repository';
-import { UsersService } from '@/modules/users/users.service';
+import { updateUserRoleSchema } from '@/modules/admin/admin.dto';
 import { UserRole } from '@/types/domain.types';
-import { asyncHandler } from '@/utils/asyncHandler';
 
-const router = Router();
+import { usersController } from './users.controller';
+import {
+  changeMobileSchema,
+  changePasswordSchema,
+  deleteAccountSchema,
+  listUsersSchema,
+  updateNotificationSettingsSchema,
+  updatePreferencesSchema,
+  updateProfileSchema,
+  userIdParamSchema,
+} from './users.dto';
 
-const repository = new UsersRepository();
-const service = new UsersService(repository);
-const controller = new UsersController(service);
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    cb(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype));
+  },
+});
 
-/**
- * @openapi
- * /users/me:
- *   get:
- *     summary: Get the authenticated user's profile
- *     tags: [Users]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Profile retrieved }
- *       501: { description: Not yet implemented }
- */
-router.get('/me', authMiddleware, asyncHandler(controller.getProfile));
+export const usersRoutes = Router();
 
-/**
- * @openapi
- * /users/me:
- *   patch:
- *     summary: Update the authenticated user's profile
- *     tags: [Users]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Profile updated }
- */
-router.patch(
-  '/me',
-  authMiddleware,
-  validate({ body: updateProfileSchema }),
-  asyncHandler(controller.updateProfile),
+/** @openapi /users/me: get: { summary: Get own profile, tags: [Users], security: [{ bearerAuth: [] }] } */
+usersRoutes.get('/me', requireAuth, usersController.getMe);
+
+/** @openapi /users/me: patch: { summary: Update own profile, tags: [Users], security: [{ bearerAuth: [] }] } */
+usersRoutes.patch('/me', requireAuth, validate({ body: updateProfileSchema }), usersController.updateProfile);
+
+/** @openapi /users/me/password: patch: { summary: Change password, tags: [Users], security: [{ bearerAuth: [] }] } */
+usersRoutes.patch('/me/password', requireAuth, validate({ body: changePasswordSchema }), usersController.changePassword);
+
+/** @openapi /users/me/mobile/send-otp: post: { summary: Send OTP to new mobile number, tags: [Users], security: [{ bearerAuth: [] }] } */
+usersRoutes.post('/me/mobile/send-otp', requireAuth, usersController.requestMobileChangeOtp);
+
+/** @openapi /users/me/mobile: patch: { summary: Change mobile number (OTP-verified), tags: [Users], security: [{ bearerAuth: [] }] } */
+usersRoutes.patch('/me/mobile', requireAuth, validate({ body: changeMobileSchema }), usersController.changeMobile);
+
+/** @openapi /users/me/preferences: patch: { summary: Update dietary/cuisine preferences, tags: [Users], security: [{ bearerAuth: [] }] } */
+usersRoutes.patch('/me/preferences', requireAuth, validate({ body: updatePreferencesSchema }), usersController.updatePreferences);
+
+/** @openapi /users/me/notification-settings: patch: { summary: Update notification preferences, tags: [Users], security: [{ bearerAuth: [] }] } */
+usersRoutes.patch(
+  '/me/notification-settings',
+  requireAuth,
+  validate({ body: updateNotificationSettingsSchema }),
+  usersController.updateNotificationSettings,
 );
 
-/**
- * @openapi
- * /users/me/password:
- *   patch:
- *     summary: Change the authenticated user's password
- *     tags: [Users]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Password changed }
- */
-router.patch(
-  '/me/password',
-  authMiddleware,
-  validate({ body: changePasswordSchema }),
-  asyncHandler(controller.changePassword),
+/** @openapi /users/me/photo: post: { summary: Upload profile photo, tags: [Users], security: [{ bearerAuth: [] }] } */
+usersRoutes.post('/me/photo', requireAuth, upload.single('photo'), usersController.uploadPhoto);
+
+/** @openapi /users/me/request-deletion-otp: post: { summary: Send OTP required to confirm account deletion, tags: [Users], security: [{ bearerAuth: [] }] } */
+usersRoutes.post('/me/request-deletion-otp', requireAuth, usersController.requestDeletionOtp);
+
+/** @openapi /users/me: delete: { summary: Delete own account (OTP-verified, DPDPA), tags: [Users], security: [{ bearerAuth: [] }] } */
+usersRoutes.delete('/me', requireAuth, validate({ body: deleteAccountSchema }), usersController.deleteAccount);
+
+export const adminUsersRoutes = Router();
+
+const adminRoles = [UserRole.ADMIN, UserRole.SUPER_ADMIN];
+
+/** @openapi /admin/users: get: { summary: List users (admin), tags: [Users], security: [{ bearerAuth: [] }] } */
+adminUsersRoutes.get('/', requireAuth, requireRole(...adminRoles), validate({ query: listUsersSchema }), usersController.listAll);
+
+/** @openapi /admin/users/{id}/block: patch: { summary: Block/unblock a user (admin), tags: [Users], security: [{ bearerAuth: [] }] } */
+adminUsersRoutes.patch(
+  '/:id/block',
+  requireAuth,
+  requireRole(...adminRoles),
+  validate({ params: userIdParamSchema }),
+  usersController.setBlocked,
 );
 
-/**
- * @openapi
- * /users/me/mobile:
- *   post:
- *     summary: Request a mobile number change (triggers OTP to new number)
- *     tags: [Users]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: OTP sent to new mobile number }
- */
-router.post(
-  '/me/mobile',
-  authMiddleware,
-  validate({ body: requestMobileChangeSchema }),
-  asyncHandler(controller.requestMobileChange),
+/** @openapi /admin/users/{id}/role: patch: { summary: Assign a role to a user (super admin), tags: [Users], security: [{ bearerAuth: [] }] } */
+adminUsersRoutes.patch(
+  '/:id/role',
+  requireAuth,
+  requireRole(UserRole.SUPER_ADMIN),
+  validate({ params: userIdParamSchema, body: updateUserRoleSchema }),
+  usersController.setRole,
 );
-
-/**
- * @openapi
- * /users/me:
- *   delete:
- *     summary: Soft-delete the authenticated user's account (30-day recovery window)
- *     tags: [Users]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Account deletion initiated }
- */
-router.delete('/me', authMiddleware, asyncHandler(controller.deleteAccount));
-
-/**
- * @openapi
- * /users:
- *   get:
- *     summary: List platform users (admin)
- *     tags: [Users]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Paginated user list }
- */
-router.get(
-  '/',
-  authMiddleware,
-  requireRole([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
-  validate({ query: listUsersQuerySchema }),
-  asyncHandler(controller.listUsers),
-);
-
-/**
- * @openapi
- * /users/{id}/status:
- *   patch:
- *     summary: Activate or deactivate a user account (admin)
- *     tags: [Users]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: User status updated }
- */
-router.patch(
-  '/:id/status',
-  authMiddleware,
-  requireRole([UserRole.ADMIN, UserRole.SUPER_ADMIN]),
-  validate({ params: userIdParamsSchema, body: updateUserStatusSchema }),
-  asyncHandler(controller.updateUserStatus),
-);
-
-export const usersRoutes = router;

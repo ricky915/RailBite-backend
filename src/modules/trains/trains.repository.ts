@@ -1,21 +1,19 @@
-import type { ITrainSchedule } from '@/models/TrainSchedule.model';
-import { NotImplementedError } from '@/utils/errors';
+import { TRAIN_SCHEDULE_CACHE_TTL_HOURS } from '@/config/constants';
+import { TrainSchedule } from '@/models/TrainSchedule.model';
 
-/**
- * Data access for cached train schedules (TRD 12.1 `trainSchedules`).
- * Scaffold: the actual IRCTC/RailAPI cache-read/write logic is planned
- * for a later phase (TRD 29 "TrainDataProvider interface").
- */
-export class TrainsRepository {
-  findByTrainNumberAndDate(trainNumberValue: string, date: string): Promise<ITrainSchedule | null> {
-    throw new NotImplementedError(
-      `TrainsRepository.findByTrainNumberAndDate(${trainNumberValue}, ${date}) is not yet implemented.`,
-    );
-  }
+import type { VendorTrainSchedule } from './railApi.client';
 
-  upsertSchedule(data: Partial<ITrainSchedule>): Promise<ITrainSchedule> {
-    throw new NotImplementedError(
-      `TrainsRepository.upsertSchedule(${JSON.stringify(data)}) is not yet implemented.`,
+export const trainsRepository = {
+  async findCachedSchedule(trainNumber: string) {
+    return TrainSchedule.findOne({ trainNumber, expiresAt: { $gt: new Date() } });
+  },
+
+  async upsertSchedule(schedule: VendorTrainSchedule) {
+    const expiresAt = new Date(Date.now() + TRAIN_SCHEDULE_CACHE_TTL_HOURS * 60 * 60 * 1000);
+    return TrainSchedule.findOneAndUpdate(
+      { trainNumber: schedule.trainNumber },
+      { ...schedule, fetchedAt: new Date(), expiresAt },
+      { upsert: true, new: true },
     );
-  }
-}
+  },
+};

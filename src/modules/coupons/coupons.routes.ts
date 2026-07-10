@@ -1,117 +1,45 @@
 import { Router } from 'express';
 
-import { authMiddleware } from '@/middleware/auth.middleware';
+import { requireAuth } from '@/middleware/auth.middleware';
 import { requireRole } from '@/middleware/role.middleware';
 import { validate } from '@/middleware/validate.middleware';
-import { CouponsController } from '@/modules/coupons/coupons.controller';
-import {
-  couponIdParamsSchema,
-  createCouponSchema,
-  listCouponsQuerySchema,
-  pauseCouponSchema,
-  updateCouponSchema,
-  validateCouponSchema,
-} from '@/modules/coupons/coupons.dto';
-import { CouponsRepository } from '@/modules/coupons/coupons.repository';
-import { CouponsService } from '@/modules/coupons/coupons.service';
 import { UserRole } from '@/types/domain.types';
-import { asyncHandler } from '@/utils/asyncHandler';
 
-const router = Router();
+import { couponsController } from './coupons.controller';
+import { couponIdParamSchema, createCouponSchema, updateCouponSchema, validateCouponSchema } from './coupons.dto';
 
-const repository = new CouponsRepository();
-const service = new CouponsService(repository);
-const controller = new CouponsController(service);
+export const couponsRoutes = Router();
 
 const adminRoles = [UserRole.ADMIN, UserRole.SUPER_ADMIN];
 
-/**
- * @openapi
- * /coupons/validate:
- *   post:
- *     summary: Validate a coupon code against the current cart
- *     tags: [Coupons]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Coupon validation result }
- */
-router.post(
-  '/validate',
-  authMiddleware,
-  validate({ body: validateCouponSchema }),
-  asyncHandler(controller.validate),
-);
+/** @openapi /coupons: get: { summary: List currently-active coupons, tags: [Coupons] } */
+couponsRoutes.get('/', couponsController.listActive);
 
-/**
- * @openapi
- * /coupons:
- *   get:
- *     summary: List coupons (admin)
- *     tags: [Coupons]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Coupons retrieved }
- */
-router.get(
-  '/',
-  authMiddleware,
-  requireRole(adminRoles),
-  validate({ query: listCouponsQuerySchema }),
-  asyncHandler(controller.list),
-);
+/** @openapi /coupons/validate: post: { summary: Validate a coupon code against a cart, tags: [Coupons], security: [{ bearerAuth: [] }] } */
+couponsRoutes.post('/validate', requireAuth, validate({ body: validateCouponSchema }), couponsController.validate);
 
-/**
- * @openapi
- * /coupons:
- *   post:
- *     summary: Create a coupon (admin)
- *     tags: [Coupons]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       201: { description: Coupon created }
- */
-router.post(
-  '/',
-  authMiddleware,
-  requireRole(adminRoles),
-  validate({ body: createCouponSchema }),
-  asyncHandler(controller.create),
-);
+export const adminCouponsRoutes = Router();
 
-/**
- * @openapi
- * /coupons/{id}:
- *   patch:
- *     summary: Update a coupon (admin)
- *     tags: [Coupons]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Coupon updated }
- */
-router.patch(
+/** @openapi /admin/coupons: get: { summary: List all coupons (admin), tags: [Coupons], security: [{ bearerAuth: [] }] } */
+adminCouponsRoutes.get('/', requireAuth, requireRole(...adminRoles), couponsController.listAll);
+
+/** @openapi /admin/coupons: post: { summary: Create a coupon (admin), tags: [Coupons], security: [{ bearerAuth: [] }] } */
+adminCouponsRoutes.post('/', requireAuth, requireRole(...adminRoles), validate({ body: createCouponSchema }), couponsController.create);
+
+/** @openapi /admin/coupons/{id}: put: { summary: Update a coupon (admin), tags: [Coupons], security: [{ bearerAuth: [] }] } */
+adminCouponsRoutes.put(
   '/:id',
-  authMiddleware,
-  requireRole(adminRoles),
-  validate({ params: couponIdParamsSchema, body: updateCouponSchema }),
-  asyncHandler(controller.update),
+  requireAuth,
+  requireRole(...adminRoles),
+  validate({ params: couponIdParamSchema, body: updateCouponSchema }),
+  couponsController.update,
 );
 
-/**
- * @openapi
- * /coupons/{id}/pause:
- *   patch:
- *     summary: Pause or resume a coupon (admin)
- *     tags: [Coupons]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Coupon status updated }
- */
-router.patch(
-  '/:id/pause',
-  authMiddleware,
-  requireRole(adminRoles),
-  validate({ params: couponIdParamsSchema, body: pauseCouponSchema }),
-  asyncHandler(controller.pause),
+/** @openapi /admin/coupons/{id}: delete: { summary: Delete a coupon (admin), tags: [Coupons], security: [{ bearerAuth: [] }] } */
+adminCouponsRoutes.delete(
+  '/:id',
+  requireAuth,
+  requireRole(...adminRoles),
+  validate({ params: couponIdParamSchema }),
+  couponsController.delete,
 );
-
-export const couponsRoutes = router;

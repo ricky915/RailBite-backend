@@ -1,69 +1,111 @@
 import type { Request, Response } from 'express';
 
-import type {
-  ChangePasswordDto,
-  ListUsersQueryDto,
-  RequestMobileChangeDto,
-  UpdateProfileDto,
-  UpdateUserStatusDto,
-  UserIdParamsDto,
-} from '@/modules/users/users.dto';
-import type { UsersService } from '@/modules/users/users.service';
-import { AuthenticationError } from '@/utils/errors';
-import { successResponse } from '@/utils/responseFormatter';
+import { asyncHandler } from '@/utils/asyncHandler';
+import { recordAuditLog } from '@/utils/auditLog';
+import { BadRequestError, UnauthorizedError } from '@/utils/errors';
+import { sendSuccess } from '@/utils/responseFormatter';
 
-function requireUserId(req: Request): string {
-  if (!req.user) {
-    throw new AuthenticationError('Please log in to continue.');
-  }
-  return req.user.userId;
+import { usersService } from './users.service';
+
+function requireUser(req: Request) {
+  if (!req.user) throw new UnauthorizedError();
+  return req.user;
 }
 
-/**
- * Users module HTTP handlers (TRD 10.2). Thin: extract, delegate,
- * respond. Service methods are scaffolded to throw 501 for now.
- */
-export class UsersController {
-  constructor(private readonly service: UsersService) {}
+export const usersController = {
+  getMe: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    const me = await usersService.getMe(user.id);
+    sendSuccess(res, me);
+  }),
 
-  getProfile = async (req: Request, res: Response): Promise<void> => {
-    const profile = await this.service.getProfile(requireUserId(req));
-    successResponse(res, profile, 'Profile retrieved successfully.');
-  };
+  updateProfile: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    const me = await usersService.updateProfile(user.id, req.body);
+    sendSuccess(res, me, { message: 'Profile updated' });
+  }),
 
-  updateProfile = async (req: Request, res: Response): Promise<void> => {
-    const dto = req.body as UpdateProfileDto;
-    const profile = await this.service.updateProfile(requireUserId(req), dto);
-    successResponse(res, profile, 'Profile updated successfully.');
-  };
+  changePassword: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    await usersService.changePassword(user.id, req.body);
+    sendSuccess(res, null, { message: 'Password changed' });
+  }),
 
-  changePassword = async (req: Request, res: Response): Promise<void> => {
-    const dto = req.body as ChangePasswordDto;
-    await this.service.changePassword(requireUserId(req), dto);
-    successResponse(res, null, 'Password changed successfully.');
-  };
+  requestMobileChangeOtp: asyncHandler(async (req: Request, res: Response) => {
+    requireUser(req);
+    const result = await usersService.requestMobileChangeOtp(req.body.newMobile);
+    sendSuccess(res, result, { message: 'OTP sent to new mobile number' });
+  }),
 
-  requestMobileChange = async (req: Request, res: Response): Promise<void> => {
-    const dto = req.body as RequestMobileChangeDto;
-    await this.service.requestMobileChange(requireUserId(req), dto);
-    successResponse(res, null, 'OTP sent to the new mobile number for verification.');
-  };
+  changeMobile: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    const me = await usersService.changeMobile(user.id, req.body);
+    sendSuccess(res, me, { message: 'Mobile number updated' });
+  }),
 
-  deleteAccount = async (req: Request, res: Response): Promise<void> => {
-    await this.service.deleteAccount(requireUserId(req));
-    successResponse(res, null, 'Account deletion initiated. You have 30 days to recover it.');
-  };
+  updatePreferences: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    const me = await usersService.updatePreferences(user.id, req.body);
+    sendSuccess(res, me, { message: 'Preferences updated' });
+  }),
 
-  listUsers = async (req: Request, res: Response): Promise<void> => {
-    const query = req.query as unknown as ListUsersQueryDto;
-    const result = await this.service.listUsers(query);
-    successResponse(res, result, 'Users retrieved successfully.');
-  };
+  updateNotificationSettings: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    const me = await usersService.updateNotificationSettings(user.id, req.body);
+    sendSuccess(res, me, { message: 'Notification settings updated' });
+  }),
 
-  updateUserStatus = async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params as unknown as UserIdParamsDto;
-    const dto = req.body as UpdateUserStatusDto;
-    const user = await this.service.updateUserStatus(id, dto, requireUserId(req));
-    successResponse(res, user, 'User status updated successfully.');
-  };
-}
+  uploadPhoto: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    if (!req.file) throw new BadRequestError('No image file provided');
+    const me = await usersService.uploadPhoto(user.id, req.file.buffer);
+    sendSuccess(res, me, { message: 'Profile photo updated' });
+  }),
+
+  requestDeletionOtp: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    const result = await usersService.requestDeletionOtp(user.id);
+    sendSuccess(res, result, { message: 'OTP sent to confirm account deletion' });
+  }),
+
+  deleteAccount: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    await usersService.deleteAccount(user.id, req.body.otpCode);
+    sendSuccess(res, null, { message: 'Account deleted' });
+  }),
+
+  listAll: asyncHandler(async (req: Request, res: Response) => {
+    const { items, meta } = await usersService.listAll(req.query as never);
+    sendSuccess(res, items, { meta });
+  }),
+
+  setBlocked: asyncHandler(async (req: Request, res: Response) => {
+    const actor = requireUser(req);
+    const isBlocked = req.body.isBlocked !== false;
+    const user = await usersService.setBlocked(req.params.id, isBlocked);
+    await recordAuditLog({
+      actorId: actor.id,
+      actorRole: actor.role,
+      action: isBlocked ? 'USER_BLOCKED' : 'USER_UNBLOCKED',
+      entityType: 'User',
+      entityId: req.params.id,
+      ipAddress: req.ip,
+    });
+    sendSuccess(res, user, { message: isBlocked ? 'User blocked' : 'User unblocked' });
+  }),
+
+  setRole: asyncHandler(async (req: Request, res: Response) => {
+    const actor = requireUser(req);
+    const user = await usersService.setRole(req.params.id, req.body.role);
+    await recordAuditLog({
+      actorId: actor.id,
+      actorRole: actor.role,
+      action: 'USER_ROLE_CHANGED',
+      entityType: 'User',
+      entityId: req.params.id,
+      after: { role: req.body.role },
+      ipAddress: req.ip,
+    });
+    sendSuccess(res, user, { message: 'User role updated' });
+  }),
+};

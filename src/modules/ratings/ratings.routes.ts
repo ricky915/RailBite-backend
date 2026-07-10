@@ -1,74 +1,29 @@
 import { Router } from 'express';
 
-import { authMiddleware } from '@/middleware/auth.middleware';
-import { publicRateLimiter } from '@/middleware/rateLimiter';
+import { requireAuth } from '@/middleware/auth.middleware';
+import { requireRole } from '@/middleware/role.middleware';
 import { validate } from '@/middleware/validate.middleware';
-import { RatingsController } from '@/modules/ratings/ratings.controller';
-import {
-  createRatingSchema,
-  listRatingsQuerySchema,
-  ratingIdParamsSchema,
-  restaurantIdParamsSchema,
-  updateRatingSchema,
-} from '@/modules/ratings/ratings.dto';
-import { RatingsRepository } from '@/modules/ratings/ratings.repository';
-import { RatingsService } from '@/modules/ratings/ratings.service';
-import { asyncHandler } from '@/utils/asyncHandler';
+import { UserRole } from '@/types/domain.types';
 
-const router = Router();
+import { ratingsController } from './ratings.controller';
+import { createRatingSchema, listRatingsSchema, moderateRatingSchema, ratingIdParamSchema, updateRatingSchema } from './ratings.dto';
 
-const repository = new RatingsRepository();
-const service = new RatingsService(repository);
-const controller = new RatingsController(service);
+export const ratingsRoutes = Router();
 
-/**
- * @openapi
- * /ratings:
- *   post:
- *     summary: Submit a rating and review for a delivered order
- *     tags: [Ratings]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       201: { description: Rating submitted }
- */
-router.post(
-  '/',
-  authMiddleware,
-  validate({ body: createRatingSchema }),
-  asyncHandler(controller.submit),
+/** @openapi /ratings: get: { summary: List ratings (filter by restaurant/menuItem/featured), tags: [Ratings] } */
+ratingsRoutes.get('/', validate({ query: listRatingsSchema }), ratingsController.list);
+
+/** @openapi /ratings: post: { summary: Submit a rating for a delivered order, tags: [Ratings], security: [{ bearerAuth: [] }] } */
+ratingsRoutes.post('/', requireAuth, validate({ body: createRatingSchema }), ratingsController.create);
+
+/** @openapi /ratings/{id}: patch: { summary: Edit own rating within the 48h edit window, tags: [Ratings], security: [{ bearerAuth: [] }] } */
+ratingsRoutes.patch('/:id', requireAuth, validate({ params: ratingIdParamSchema, body: updateRatingSchema }), ratingsController.update);
+
+/** @openapi /ratings/{id}/moderate: patch: { summary: Flag/hide/feature a rating (admin), tags: [Ratings], security: [{ bearerAuth: [] }] } */
+ratingsRoutes.patch(
+  '/:id/moderate',
+  requireAuth,
+  requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validate({ params: ratingIdParamSchema, body: moderateRatingSchema }),
+  ratingsController.moderate,
 );
-
-/**
- * @openapi
- * /ratings/{id}:
- *   patch:
- *     summary: Edit a rating (within the 48-hour edit window)
- *     tags: [Ratings]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Rating updated }
- */
-router.patch(
-  '/:id',
-  authMiddleware,
-  validate({ params: ratingIdParamsSchema, body: updateRatingSchema }),
-  asyncHandler(controller.update),
-);
-
-/**
- * @openapi
- * /ratings/restaurant/{restaurantId}:
- *   get:
- *     summary: List reviews for a restaurant (paginated)
- *     tags: [Ratings]
- *     responses:
- *       200: { description: Reviews retrieved }
- */
-router.get(
-  '/restaurant/:restaurantId',
-  publicRateLimiter,
-  validate({ params: restaurantIdParamsSchema, query: listRatingsQuerySchema }),
-  asyncHandler(controller.listByRestaurant),
-);
-
-export const ratingsRoutes = router;

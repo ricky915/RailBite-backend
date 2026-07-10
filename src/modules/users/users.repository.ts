@@ -1,30 +1,49 @@
-import type { IUser } from '@/models/User.model';
-import type { PaginatedResult } from '@/types/domain.types';
-import { NotImplementedError } from '@/utils/errors';
+import type { FilterQuery } from 'mongoose';
 
-/**
- * Data access layer for the users module (TRD 3.2.4, 5.3).
- * Scaffold: methods are typed but not yet implemented — full profile /
- * admin-listing query logic is planned for a later phase.
- */
-export class UsersRepository {
-  findById(id: string): Promise<IUser | null> {
-    throw new NotImplementedError(`UsersRepository.findById(${id}) is not yet implemented.`);
-  }
+import { User, type UserDocument } from '@/models/User.model';
 
-  findMany(filter: Record<string, unknown>, skip: number, limit: number): Promise<PaginatedResult<IUser>> {
-    throw new NotImplementedError(
-      `UsersRepository.findMany(${JSON.stringify(filter)}, skip=${skip}, limit=${limit}) is not yet implemented.`,
-    );
-  }
+export const usersRepository = {
+  async findById(id: string) {
+    return User.findOne({ _id: id, isDeleted: false });
+  },
 
-  updateById(id: string, data: Partial<IUser>): Promise<IUser | null> {
-    throw new NotImplementedError(
-      `UsersRepository.updateById(${id}, ${JSON.stringify(data)}) is not yet implemented.`,
-    );
-  }
+  async findByIdWithPassword(id: string) {
+    return User.findOne({ _id: id, isDeleted: false }).select('+passwordHash');
+  },
 
-  softDeleteById(id: string): Promise<IUser | null> {
-    throw new NotImplementedError(`UsersRepository.softDeleteById(${id}) is not yet implemented.`);
-  }
-}
+  async updateProfile(id: string, data: Record<string, unknown>) {
+    return User.findOneAndUpdate({ _id: id, isDeleted: false }, data, { new: true });
+  },
+
+  async updatePassword(id: string, passwordHash: string) {
+    await User.findByIdAndUpdate(id, { passwordHash });
+  },
+
+  async updateMobile(id: string, mobile: string) {
+    return User.findByIdAndUpdate(id, { mobile, isMobileVerified: true }, { new: true });
+  },
+
+  async softDelete(id: string) {
+    await User.findByIdAndUpdate(id, { isDeleted: true });
+  },
+
+  async list(search: string | undefined, skip: number, limit: number) {
+    const query: FilterQuery<UserDocument> = { isDeleted: false };
+    if (search) {
+      query.$or = [{ name: { $regex: search, $options: 'i' } }, { email: { $regex: search, $options: 'i' } }, { mobile: { $regex: search } }];
+    }
+    const [items, total] = await Promise.all([
+      User.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      User.countDocuments(query),
+    ]);
+    return { items, total };
+  },
+
+  async setBlocked(id: string, isBlocked: boolean) {
+    return User.findByIdAndUpdate(id, { isBlocked }, { new: true });
+  },
+
+  async setRole(id: string, role: string) {
+    return User.findByIdAndUpdate(id, { role }, { new: true });
+  },
+};

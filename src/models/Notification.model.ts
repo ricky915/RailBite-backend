@@ -1,51 +1,45 @@
-import type { Document, Types } from 'mongoose';
-import { model, Schema } from 'mongoose';
+import type { Types } from 'mongoose';
+import { Schema, model } from 'mongoose';
 
-import { NotificationChannel, NotificationStatus } from '@/types/domain.types';
+import { NotificationChannel, NotificationEvent } from '@/types/domain.types';
 
-/**
- * `notifications` collection (TRD 12.1). Dispatch log referencing user
- * and, where applicable, the triggering order.
- */
-export interface INotification extends Document {
+export interface NotificationDocument {
+  _id: Types.ObjectId;
   userId: Types.ObjectId;
-  orderId?: Types.ObjectId;
+  event: NotificationEvent;
   channel: NotificationChannel;
-  templateKey: string;
-  subject?: string;
-  content: string;
-  status: NotificationStatus;
-  retryCount: number;
-  errorMessage?: string;
+  title: string;
+  body: string;
   isRead: boolean;
+  relatedEntityType?: string;
+  relatedEntityId?: Types.ObjectId;
+  dispatchStatus: 'PENDING' | 'SENT' | 'FAILED';
+  attemptCount: number;
   sentAt?: Date;
-  deliveredAt?: Date;
+  isDeleted: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const notificationSchema = new Schema<INotification>(
+const notificationSchema = new Schema<NotificationDocument>(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    orderId: { type: Schema.Types.ObjectId, ref: 'Order' },
+    event: { type: String, enum: Object.values(NotificationEvent), required: true },
     channel: { type: String, enum: Object.values(NotificationChannel), required: true },
-    templateKey: { type: String, required: true },
-    subject: { type: String, maxlength: 100 },
-    content: { type: String, required: true },
-    status: {
-      type: String,
-      enum: Object.values(NotificationStatus),
-      default: NotificationStatus.PENDING,
-    },
-    retryCount: { type: Number, default: 0, min: 0, max: 3 },
-    errorMessage: { type: String },
+    title: { type: String, required: true },
+    body: { type: String, required: true },
     isRead: { type: Boolean, default: false },
+    relatedEntityType: { type: String },
+    relatedEntityId: { type: Schema.Types.ObjectId },
+    dispatchStatus: { type: String, enum: ['PENDING', 'SENT', 'FAILED'], default: 'PENDING' },
+    attemptCount: { type: Number, default: 0 },
     sentAt: { type: Date },
-    deliveredAt: { type: Date },
+    isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true },
 );
 
 notificationSchema.index({ userId: 1, createdAt: -1 });
+notificationSchema.index({ userId: 1, isRead: 1 });
 
-export const NotificationModel = model<INotification>('Notification', notificationSchema);
+export const Notification = model<NotificationDocument>('Notification', notificationSchema);

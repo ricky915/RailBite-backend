@@ -1,75 +1,48 @@
-import type { Document, Types } from 'mongoose';
-import { model, Schema } from 'mongoose';
+import type { Types } from 'mongoose';
+import { Schema, model } from 'mongoose';
 
-import { SupportTicketCategory, SupportTicketStatus } from '@/types/domain.types';
+import { SupportTicketPriority, SupportTicketStatus } from '@/types/domain.types';
 
-export interface ITicketMessage {
-  senderId: Types.ObjectId;
-  senderRole: string;
-  message: string;
-  attachmentUrls: string[];
-  createdAt: Date;
-}
-
-/**
- * `supportTickets` collection (TRD 12.1). Embeds the message thread
- * history directly on the ticket document.
- */
-export interface ISupportTicket extends Document {
+export interface SupportTicketDocument {
+  _id: Types.ObjectId;
   ticketNumber: string;
-  passengerId: Types.ObjectId;
-  orderId?: Types.ObjectId;
-  category: SupportTicketCategory;
-  description: string;
-  attachmentUrls: string[];
+  userId?: Types.ObjectId;
+  name: string;
+  email: string;
+  phone?: string;
+  subject: string;
+  message: string;
+  category: string;
   status: SupportTicketStatus;
-  priority: 'standard' | 'priority';
+  priority: SupportTicketPriority;
   assignedTo?: Types.ObjectId;
-  messages: ITicketMessage[];
-  resolvedAt?: Date;
-  closedAt?: Date;
-  reopenedAt?: Date;
-  csatScore?: number;
+  orderId?: Types.ObjectId;
+  resolutionNote?: string;
+  isDeleted: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const ticketMessageSchema = new Schema<ITicketMessage>(
-  {
-    senderId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    senderRole: { type: String, required: true },
-    message: { type: String, required: true },
-    attachmentUrls: { type: [String], default: [] },
-    createdAt: { type: Date, default: Date.now },
-  },
-  { _id: false },
-);
-
-const supportTicketSchema = new Schema<ISupportTicket>(
+const supportTicketSchema = new Schema<SupportTicketDocument>(
   {
     ticketNumber: { type: String, required: true, unique: true },
-    passengerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    orderId: { type: Schema.Types.ObjectId, ref: 'Order' },
-    category: { type: String, enum: Object.values(SupportTicketCategory), required: true },
-    description: { type: String, required: true, minlength: 10, maxlength: 1000 },
-    attachmentUrls: { type: [String], default: [] },
-    status: {
-      type: String,
-      enum: Object.values(SupportTicketStatus),
-      default: SupportTicketStatus.OPEN,
-    },
-    priority: { type: String, enum: ['standard', 'priority'], default: 'standard' },
+    userId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
+    name: { type: String, required: true, trim: true, maxlength: 80 },
+    email: { type: String, required: true, trim: true, lowercase: true },
+    phone: { type: String },
+    subject: { type: String, required: true, maxlength: 200 },
+    message: { type: String, required: true, minlength: 5, maxlength: 1000 },
+    category: { type: String, default: 'GENERAL' },
+    status: { type: String, enum: Object.values(SupportTicketStatus), default: SupportTicketStatus.OPEN },
+    priority: { type: String, enum: Object.values(SupportTicketPriority), default: SupportTicketPriority.MEDIUM },
     assignedTo: { type: Schema.Types.ObjectId, ref: 'User' },
-    messages: { type: [ticketMessageSchema], default: [] },
-    resolvedAt: { type: Date },
-    closedAt: { type: Date },
-    reopenedAt: { type: Date },
-    csatScore: { type: Number, min: 1, max: 5 },
+    orderId: { type: Schema.Types.ObjectId, ref: 'Order' },
+    resolutionNote: { type: String },
+    isDeleted: { type: Boolean, default: false },
   },
-  { timestamps: true },
+  { timestamps: true, collection: 'supportTickets' },
 );
 
-supportTicketSchema.index({ passengerId: 1, status: 1 });
-supportTicketSchema.index({ status: 1, priority: 1, createdAt: 1 });
+supportTicketSchema.index({ status: 1 });
 
-export const SupportTicketModel = model<ISupportTicket>('SupportTicket', supportTicketSchema);
+export const SupportTicket = model<SupportTicketDocument>('SupportTicket', supportTicketSchema);

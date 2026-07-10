@@ -1,21 +1,12 @@
 import { z } from 'zod';
 
-import { dateRangeQuery } from '@/validations/common.validations';
-
-export const reportTypeParamsSchema = z.object({
-  type: z.enum([
-    'orders',
-    'revenue',
-    'restaurant-performance',
-    'users',
-    'coupons',
-    'refunds',
-    'support',
-  ]),
+export const reportTypeParamSchema = z.object({
+  type: z.enum(['orders', 'revenue', 'restaurants', 'users']),
 });
-export type ReportTypeParamsDto = z.infer<typeof reportTypeParamsSchema>;
+export type ReportType = z.infer<typeof reportTypeParamSchema>['type'];
 
-export const reportQuerySchema = dateRangeQuery.extend({
-  format: z.enum(['csv', 'pdf']).default('csv'),
+export const reportQuerySchema = z.object({
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
 });
-export type ReportQueryDto = z.infer<typeof reportQuerySchema>;
+export type ReportQueryInput = z.infer<typeof reportQuerySchema>;

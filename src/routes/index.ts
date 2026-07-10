@@ -1,42 +1,50 @@
 import { Router } from 'express';
 
 import { adminRoutes } from '@/modules/admin/admin.routes';
+import { analyticsRoutes } from '@/modules/analytics/analytics.routes';
 import { authRoutes } from '@/modules/auth/auth.routes';
 import { cartRoutes } from '@/modules/cart/cart.routes';
-import { couponsRoutes } from '@/modules/coupons/coupons.routes';
+import { adminCmsRoutes, cmsRoutes } from '@/modules/cms/cms.routes';
+import { adminCouponsRoutes, couponsRoutes } from '@/modules/coupons/coupons.routes';
 import { invoicesRoutes } from '@/modules/invoices/invoices.routes';
-import { menusRoutes } from '@/modules/menus/menus.routes';
+import { menuRoutes } from '@/modules/menu/menu.routes';
 import { notificationsRoutes } from '@/modules/notifications/notifications.routes';
-import { ordersRoutes } from '@/modules/orders/orders.routes';
+import { adminOrdersRoutes, ordersRoutes } from '@/modules/orders/orders.routes';
 import { paymentsRoutes } from '@/modules/payments/payments.routes';
 import { ratingsRoutes } from '@/modules/ratings/ratings.routes';
-import { restaurantsRoutes } from '@/modules/restaurants/restaurants.routes';
-import { supportRoutes } from '@/modules/support/support.routes';
+import { reportsRoutes } from '@/modules/reports/reports.routes';
+import { adminRestaurantsRoutes, restaurantsRoutes } from '@/modules/restaurants/restaurants.routes';
+import { adminSupportRoutes, supportRoutes } from '@/modules/support/support.routes';
 import { trainsRoutes } from '@/modules/trains/trains.routes';
-import { usersRoutes } from '@/modules/users/users.routes';
+import { adminUsersRoutes, usersRoutes } from '@/modules/users/users.routes';
 
-/**
- * Central route aggregator (TRD 4.2 `routes/index.ts`). Mounts every
- * feature module router under `/api/v1` (TRD 11.1 "Base URL"). This is
- * the only file that composes module routers together; individual
- * modules never import each other's routers directly (except `admin`,
- * which explicitly owns cross-module admin operations per TRD 4.2).
- */
-const router = Router();
+export const apiRouter = Router();
 
-router.use('/auth', authRoutes);
-router.use('/users', usersRoutes);
-router.use('/trains', trainsRoutes);
-router.use('/restaurants', restaurantsRoutes);
-router.use('/menus', menusRoutes);
-router.use('/cart', cartRoutes);
-router.use('/orders', ordersRoutes);
-router.use('/payments', paymentsRoutes);
-router.use('/coupons', couponsRoutes);
-router.use('/notifications', notificationsRoutes);
-router.use('/ratings', ratingsRoutes);
-router.use('/invoices', invoicesRoutes);
-router.use('/support', supportRoutes);
-router.use('/admin', adminRoutes);
+apiRouter.get('/health', (_req, res) => {
+  res.status(200).json({ success: true, data: { status: 'ok', timestamp: new Date().toISOString() } });
+});
 
-export const apiRouter = router;
+apiRouter.use('/auth', authRoutes);
+apiRouter.use('/restaurants', restaurantsRoutes);
+apiRouter.use('/menu', menuRoutes);
+apiRouter.use('/trains', trainsRoutes);
+apiRouter.use('/coupons', couponsRoutes);
+apiRouter.use('/cart', cartRoutes);
+apiRouter.use('/payments', paymentsRoutes);
+apiRouter.use('/orders', ordersRoutes);
+apiRouter.use('/users', usersRoutes);
+apiRouter.use('/ratings', ratingsRoutes);
+apiRouter.use('/invoices', invoicesRoutes);
+apiRouter.use('/support', supportRoutes);
+apiRouter.use('/notifications', notificationsRoutes);
+apiRouter.use('/cms', cmsRoutes);
+
+apiRouter.use('/admin/restaurants', adminRestaurantsRoutes);
+apiRouter.use('/admin/coupons', adminCouponsRoutes);
+apiRouter.use('/admin/orders', adminOrdersRoutes);
+apiRouter.use('/admin/users', adminUsersRoutes);
+apiRouter.use('/admin/support', adminSupportRoutes);
+apiRouter.use('/admin/cms', adminCmsRoutes);
+apiRouter.use('/admin/analytics', analyticsRoutes);
+apiRouter.use('/admin/reports', reportsRoutes);
+apiRouter.use('/admin', adminRoutes);

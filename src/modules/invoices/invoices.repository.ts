@@ -1,20 +1,19 @@
-import type { IInvoice } from '@/models/Invoice.model';
-import { NotImplementedError } from '@/utils/errors';
+import { Counter } from '@/models/Counter.model';
+import { Invoice } from '@/models/Invoice.model';
 
-/**
- * Data access for the invoices module (TRD 3.2.4, 5.3, `invoices`
- * collection). Scaffold: invoice generation (delegating to the shared
- * `pdf.service.ts`) and sequential financial-year numbering are planned
- * for a later phase.
- */
-export class InvoicesRepository {
-  findByOrderId(orderId: string): Promise<IInvoice | null> {
-    throw new NotImplementedError(`InvoicesRepository.findByOrderId(${orderId}) is not yet implemented.`);
-  }
+export const invoicesRepository = {
+  async findByOrderId(orderId: string) {
+    return Invoice.findOne({ orderId, isDeleted: false });
+  },
 
-  create(data: Partial<IInvoice>): Promise<IInvoice> {
-    throw new NotImplementedError(
-      `InvoicesRepository.create(${JSON.stringify(data)}) is not yet implemented.`,
-    );
-  }
-}
+  async create(data: Record<string, unknown>) {
+    return Invoice.create(data);
+  },
+
+  async nextInvoiceNumber(): Promise<string> {
+    const year = new Date().getFullYear();
+    const key = `invoice:${year}`;
+    const counter = await Counter.findByIdAndUpdate(key, { $inc: { seq: 1 } }, { upsert: true, new: true });
+    return `INV-${year}-${String(counter.seq).padStart(5, '0')}`;
+  },
+};

@@ -1,36 +1,31 @@
-import type { Document, Types } from 'mongoose';
-import { model, Schema } from 'mongoose';
+import type { Types } from 'mongoose';
+import { Schema, model } from 'mongoose';
 
-/**
- * `refreshTokens` collection (TRD 12.1, 13.1-13.3). Stores only the
- * bcrypt hash of the refresh token, never the raw value. TTL-indexed so
- * expired tokens are automatically purged.
- */
-export interface IRefreshToken extends Document {
+export interface RefreshTokenDocument {
+  _id: Types.ObjectId;
   userId: Types.ObjectId;
   tokenHash: string;
-  tokenVersion: number;
+  isRevoked: boolean;
+  replacedByTokenId?: Types.ObjectId;
   expiresAt: Date;
-  revokedAt?: Date;
-  createdByIp?: string;
+  ipAddress?: string;
+  userAgent?: string;
   createdAt: Date;
-  updatedAt: Date;
 }
 
-const refreshTokenSchema = new Schema<IRefreshToken>(
+const refreshTokenSchema = new Schema<RefreshTokenDocument>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    tokenHash: { type: String, required: true },
-    tokenVersion: { type: Number, required: true, default: 0 },
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    tokenHash: { type: String, required: true, unique: true },
+    isRevoked: { type: Boolean, default: false },
+    replacedByTokenId: { type: Schema.Types.ObjectId, ref: 'RefreshToken' },
     expiresAt: { type: Date, required: true },
-    revokedAt: { type: Date },
-    createdByIp: { type: String },
+    ipAddress: { type: String },
+    userAgent: { type: String },
   },
-  { timestamps: true },
+  { timestamps: { createdAt: true, updatedAt: false }, collection: 'refreshTokens' },
 );
 
-// TRD 12.3: TTL index (expireAfterSeconds: 0) — auto-delete expired tokens.
 refreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-refreshTokenSchema.index({ userId: 1 });
 
-export const RefreshTokenModel = model<IRefreshToken>('RefreshToken', refreshTokenSchema);
+export const RefreshToken = model<RefreshTokenDocument>('RefreshToken', refreshTokenSchema);

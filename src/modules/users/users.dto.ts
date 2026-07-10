@@ -1,46 +1,54 @@
 import { z } from 'zod';
 
-import { mongoId, name, password, paginationQuery } from '@/validations/common.validations';
+const passwordSchema = z
+  .string()
+  .min(8)
+  .max(72)
+  .regex(/[a-zA-Z]/)
+  .regex(/[0-9]/);
 
 export const updateProfileSchema = z.object({
-  name: name.optional(),
-  preferences: z
-    .object({
-      dietaryTags: z.array(z.string()).optional(),
-      cuisinePrefs: z.array(z.string()).optional(),
-    })
-    .optional(),
-  notificationSettings: z
-    .object({
-      emailMarketing: z.boolean().optional(),
-      smsMarketing: z.boolean().optional(),
-      inApp: z.boolean().optional(),
-    })
-    .optional(),
+  name: z.string().trim().min(2).max(80).optional(),
 });
-export type UpdateProfileDto = z.infer<typeof updateProfileSchema>;
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 
 export const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, 'Please enter your current password.'),
-  newPassword: password,
+  currentPassword: z.string().min(1),
+  newPassword: passwordSchema,
 });
-export type ChangePasswordDto = z.infer<typeof changePasswordSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
-export const requestMobileChangeSchema = z.object({
-  newMobile: z.string().regex(/^[6-9]\d{9}$/, 'Please enter a valid 10-digit Indian mobile number.'),
+export const changeMobileSchema = z.object({
+  newMobile: z.string().trim().regex(/^[6-9]\d{9}$/),
+  otpCode: z.string().trim().length(6).regex(/^\d{6}$/),
 });
-export type RequestMobileChangeDto = z.infer<typeof requestMobileChangeSchema>;
+export type ChangeMobileInput = z.infer<typeof changeMobileSchema>;
 
-export const userIdParamsSchema = z.object({ id: mongoId });
-export type UserIdParamsDto = z.infer<typeof userIdParamsSchema>;
-
-export const listUsersQuerySchema = paginationQuery.extend({
-  role: z.string().optional(),
-  isActive: z.coerce.boolean().optional(),
+export const updatePreferencesSchema = z.object({
+  dietaryTags: z.array(z.string().trim()).optional(),
+  cuisinePreferences: z.array(z.string().trim()).optional(),
 });
-export type ListUsersQueryDto = z.infer<typeof listUsersQuerySchema>;
+export type UpdatePreferencesInput = z.infer<typeof updatePreferencesSchema>;
 
-export const updateUserStatusSchema = z.object({
-  isActive: z.boolean(),
+export const updateNotificationSettingsSchema = z.object({
+  smsEnabled: z.boolean().optional(),
+  emailEnabled: z.boolean().optional(),
+  promotionalEnabled: z.boolean().optional(),
 });
-export type UpdateUserStatusDto = z.infer<typeof updateUserStatusSchema>;
+export type UpdateNotificationSettingsInput = z.infer<typeof updateNotificationSettingsSchema>;
+
+export const deleteAccountSchema = z.object({
+  otpCode: z.string().trim().length(6).regex(/^\d{6}$/),
+});
+export type DeleteAccountInput = z.infer<typeof deleteAccountSchema>;
+
+export const userIdParamSchema = z.object({
+  id: z.string().regex(/^[a-f0-9]{24}$/i),
+});
+
+export const listUsersSchema = z.object({
+  page: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().optional(),
+  search: z.string().trim().optional(),
+});
+export type ListUsersInput = z.infer<typeof listUsersSchema>;

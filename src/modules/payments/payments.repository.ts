@@ -1,31 +1,49 @@
-import type { IPayment } from '@/models/Payment.model';
-import { NotImplementedError } from '@/utils/errors';
+import { Payment } from '@/models/Payment.model';
+import type { PaymentMethod, PaymentStatus } from '@/types/domain.types';
 
-/**
- * Data access for the payments module (TRD 3.2.4, 5.3, `payments`
- * collection). Scaffold: gateway order creation, capture, and refund
- * persistence are planned for a later phase.
- */
-export class PaymentsRepository {
-  findByOrderId(orderId: string): Promise<IPayment | null> {
-    throw new NotImplementedError(`PaymentsRepository.findByOrderId(${orderId}) is not yet implemented.`);
-  }
+export const paymentsRepository = {
+  async create(data: { orderId: string; razorpayOrderId?: string; amountPaise: number; method: PaymentMethod; status: PaymentStatus }) {
+    return Payment.create(data);
+  },
 
-  findByGatewayPaymentId(gatewayPaymentId: string): Promise<IPayment | null> {
-    throw new NotImplementedError(
-      `PaymentsRepository.findByGatewayPaymentId(${gatewayPaymentId}) is not yet implemented.`,
+  async findByOrderId(orderId: string) {
+    return Payment.findOne({ orderId });
+  },
+
+  async findByRazorpayOrderId(razorpayOrderId: string) {
+    return Payment.findOne({ razorpayOrderId });
+  },
+
+  async hasProcessedEvent(paymentId: string, eventId: string) {
+    return Payment.exists({ _id: paymentId, webhookEventIds: eventId });
+  },
+
+  async markCaptured(paymentId: string, razorpayPaymentId: string, eventId: string) {
+    return Payment.findByIdAndUpdate(
+      paymentId,
+      {
+        status: 'captured',
+        razorpayPaymentId,
+        capturedAt: new Date(),
+        $addToSet: { webhookEventIds: eventId },
+      },
+      { new: true },
     );
-  }
+  },
 
-  create(data: Partial<IPayment>): Promise<IPayment> {
-    throw new NotImplementedError(
-      `PaymentsRepository.create(${JSON.stringify(data)}) is not yet implemented.`,
+  async markFailed(paymentId: string, failureReason: string, eventId: string) {
+    return Payment.findByIdAndUpdate(
+      paymentId,
+      { status: 'failed', failureReason, $addToSet: { webhookEventIds: eventId } },
+      { new: true },
     );
-  }
+  },
 
-  updateById(id: string, data: Partial<IPayment>): Promise<IPayment | null> {
-    throw new NotImplementedError(
-      `PaymentsRepository.updateById(${id}, ${JSON.stringify(data)}) is not yet implemented.`,
-    );
-  }
-}
+  async addRefund(
+    paymentId: string,
+    refund: { refundId: string; amountPaise: number; reason: string; status: 'INITIATED' | 'PROCESSED' | 'FAILED'; processedAt?: Date },
+    newStatus: PaymentStatus,
+  ) {
+    return Payment.findByIdAndUpdate(paymentId, { $push: { refunds: refund }, status: newStatus }, { new: true });
+  },
+};

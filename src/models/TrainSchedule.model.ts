@@ -1,59 +1,55 @@
-import type { Document } from 'mongoose';
-import { model, Schema } from 'mongoose';
+import type { Types } from 'mongoose';
+import { Schema, model } from 'mongoose';
 
-export interface ITrainStop {
+export interface TrainStop {
   stationCode: string;
   stationName: string;
-  arrivalTime?: string; // HH:MM
-  departureTime?: string; // HH:MM
-  dayOffset: number; // 0 = same day as journey start
-  distanceKm: number;
+  arrivalTime?: string;
+  departureTime?: string;
+  dayOffset: number;
+  distanceKm?: number;
 }
 
-/**
- * `trainSchedules` collection (TRD 12.1). Cached train schedule data from
- * the IRCTC/RailAPI provider; embeds the stops array. TTL-expired after
- * 24 hours (see index below) to force a periodic refresh.
- */
-export interface ITrainSchedule extends Document {
+export interface TrainScheduleDocument {
+  _id: Types.ObjectId;
   trainNumber: string;
   trainName: string;
-  date: string; // YYYY-MM-DD
-  stops: ITrainStop[];
-  isCancelled: boolean;
-  delayMinutes: number;
-  cachedAt: Date;
+  sourceStationCode: string;
+  destinationStationCode: string;
+  runsOnDays: string[];
+  stops: TrainStop[];
+  fetchedAt: Date;
+  expiresAt: Date;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const trainStopSchema = new Schema<ITrainStop>(
+const trainStopSchema = new Schema<TrainStop>(
   {
     stationCode: { type: String, required: true },
     stationName: { type: String, required: true },
     arrivalTime: { type: String },
     departureTime: { type: String },
     dayOffset: { type: Number, default: 0 },
-    distanceKm: { type: Number, default: 0 },
+    distanceKm: { type: Number },
   },
   { _id: false },
 );
 
-const trainScheduleSchema = new Schema<ITrainSchedule>(
+const trainScheduleSchema = new Schema<TrainScheduleDocument>(
   {
-    trainNumber: { type: String, required: true, match: /^\d{5}$/ },
+    trainNumber: { type: String, required: true, unique: true, trim: true },
     trainName: { type: String, required: true },
-    date: { type: String, required: true },
+    sourceStationCode: { type: String, required: true },
+    destinationStationCode: { type: String, required: true },
+    runsOnDays: { type: [String], default: [] },
     stops: { type: [trainStopSchema], default: [] },
-    isCancelled: { type: Boolean, default: false },
-    delayMinutes: { type: Number, default: 0 },
-    cachedAt: { type: Date, default: Date.now },
+    fetchedAt: { type: Date, required: true, default: Date.now },
+    expiresAt: { type: Date, required: true },
   },
-  { timestamps: true },
+  { timestamps: true, collection: 'trainSchedules' },
 );
 
-trainScheduleSchema.index({ trainNumber: 1, date: 1 }, { unique: true });
-// TRD 12.3: TTL index, 24-hour cache expiry.
-trainScheduleSchema.index({ cachedAt: 1 }, { expireAfterSeconds: 86400 });
+trainScheduleSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-export const TrainScheduleModel = model<ITrainSchedule>('TrainSchedule', trainScheduleSchema);
+export const TrainSchedule = model<TrainScheduleDocument>('TrainSchedule', trainScheduleSchema);

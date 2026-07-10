@@ -1,92 +1,89 @@
-import type { IUser } from '@/models/User.model';
-import { UserModel } from '@/models/User.model';
-import type { IRefreshToken } from '@/models/RefreshToken.model';
-import { RefreshTokenModel } from '@/models/RefreshToken.model';
-import type { IOtp, OtpPurpose } from '@/models/Otp.model';
-import { OtpModel } from '@/models/Otp.model';
+import { Otp, type OtpPurpose } from '@/models/Otp.model';
+import { RefreshToken } from '@/models/RefreshToken.model';
+import { User, type UserDocument } from '@/models/User.model';
 
-/**
- * Data access layer for the auth module (TRD 3.2.4, 5.3). Only this
- * layer touches Mongoose models directly; auth.service.ts consumes these
- * typed methods.
- */
-export class AuthRepository {
-  findUserByMobile(mobile: string): Promise<IUser | null> {
-    return UserModel.findOne({ mobile, isDeleted: false });
-  }
+const MOBILE_REGEX = /^[6-9]\d{9}$/;
 
-  findUserByEmail(emailAddress: string): Promise<IUser | null> {
-    return UserModel.findOne({ email: emailAddress, isDeleted: false });
-  }
-
-  findUserByIdentifier(identifier: string): Promise<IUser | null> {
-    const isMobile = /^[6-9]\d{9}$/.test(identifier);
-    return isMobile
-      ? this.findUserByMobile(identifier)
-      : this.findUserByEmail(identifier.toLowerCase());
-  }
-
-  findUserById(id: string): Promise<IUser | null> {
-    return UserModel.findOne({ _id: id, isDeleted: false });
-  }
-
-  createUser(data: Partial<IUser>): Promise<IUser> {
-    return UserModel.create(data);
-  }
-
-  async createOtp(data: {
-    userId?: string;
-    identifier: string;
-    otpHash: string;
-    purpose: OtpPurpose;
-    expiresAt: Date;
-  }): Promise<IOtp> {
-    return OtpModel.create(data);
-  }
-
-  findLatestOtp(identifier: string, purpose: OtpPurpose): Promise<IOtp | null> {
-    return OtpModel.findOne({ identifier, purpose, isVerified: false }).sort({ createdAt: -1 });
-  }
-
-  saveOtp(otp: IOtp): Promise<IOtp> {
-    return otp.save();
-  }
-
-  countRecentOtps(identifier: string, purpose: OtpPurpose, since: Date): Promise<number> {
-    return OtpModel.countDocuments({ identifier, purpose, createdAt: { $gte: since } });
-  }
-
-  createRefreshToken(data: {
-    userId: string;
-    tokenHash: string;
-    tokenVersion: number;
-    expiresAt: Date;
-    createdByIp?: string;
-  }): Promise<IRefreshToken> {
-    return RefreshTokenModel.create(data);
-  }
-
-  findRefreshTokensByUser(userId: string): Promise<IRefreshToken[]> {
-    return RefreshTokenModel.find({ userId });
-  }
-
-  findRefreshTokenById(id: string): Promise<IRefreshToken | null> {
-    return RefreshTokenModel.findById(id);
-  }
-
-  saveRefreshToken(token: IRefreshToken): Promise<IRefreshToken> {
-    return token.save();
-  }
-
-  deleteRefreshTokenById(id: string): Promise<unknown> {
-    return RefreshTokenModel.deleteOne({ _id: id });
-  }
-
-  deleteAllRefreshTokensForUser(userId: string): Promise<unknown> {
-    return RefreshTokenModel.deleteMany({ userId });
-  }
-
-  saveUser(user: IUser): Promise<IUser> {
-    return user.save();
-  }
+export function isMobileIdentifier(identifier: string): boolean {
+  return MOBILE_REGEX.test(identifier);
 }
+
+export const authRepository = {
+  async findByEmail(email: string) {
+    return User.findOne({ email: email.toLowerCase(), isDeleted: false }).select('+passwordHash');
+  },
+
+  async findByMobile(mobile: string) {
+    return User.findOne({ mobile, isDeleted: false }).select('+passwordHash');
+  },
+
+  async findByIdentifier(identifier: string) {
+    return isMobileIdentifier(identifier) ? this.findByMobile(identifier) : this.findByEmail(identifier);
+  },
+
+  async existsByEmailOrMobile(email: string, mobile: string) {
+    return User.exists({ $or: [{ email: email.toLowerCase() }, { mobile }], isDeleted: false });
+  },
+
+  async createUser(data: { name: string; email: string; mobile: string; passwordHash: string }) {
+    return User.create(data);
+  },
+
+  async findById(userId: string) {
+    return User.findById(userId);
+  },
+
+  async incrementFailedLogin(userId: string) {
+    return User.findByIdAndUpdate(userId, { $inc: { failedLoginCount: 1 } }, { new: true });
+  },
+
+  async lockAccount(userId: string, until: Date) {
+    await User.findByIdAndUpdate(userId, { lockedUntil: until });
+  },
+
+  async resetFailedLoginTracking(userId: string) {
+    await User.findByIdAndUpdate(userId, { failedLoginCount: 0, lockedUntil: undefined, lastLoginAt: new Date() });
+  },
+
+  async updatePasswordHash(userId: string, passwordHash: string) {
+    await User.findByIdAndUpdate(userId, { passwordHash });
+  },
+
+  async markVerified(userId: string, field: 'isMobileVerified' | 'isEmailVerified') {
+    await User.findByIdAndUpdate(userId, { [field]: true });
+  },
+
+  async createOtp(data: { identifier: string; purpose: OtpPurpose; codeHash: string; expiresAt: Date; resendCount: number }) {
+    return Otp.create(data);
+  },
+
+  async findLatestActiveOtp(identifier: string, purpose: OtpPurpose) {
+    return Otp.findOne({ identifier, purpose, isConsumed: false }).sort({ createdAt: -1 });
+  },
+
+  async consumeOtp(otpId: string) {
+    await Otp.findByIdAndUpdate(otpId, { isConsumed: true });
+  },
+
+  async incrementOtpAttempt(otpId: string) {
+    await Otp.findByIdAndUpdate(otpId, { $inc: { attemptCount: 1 } });
+  },
+
+  async createRefreshToken(data: { userId: string; tokenHash: string; expiresAt: Date; ipAddress?: string; userAgent?: string }) {
+    return RefreshToken.create(data);
+  },
+
+  async findRefreshTokenById(tokenId: string) {
+    return RefreshToken.findById(tokenId);
+  },
+
+  async revokeRefreshToken(tokenId: string, replacedByTokenId?: string) {
+    await RefreshToken.findByIdAndUpdate(tokenId, { isRevoked: true, ...(replacedByTokenId ? { replacedByTokenId } : {}) });
+  },
+
+  async revokeAllRefreshTokensForUser(userId: string) {
+    await RefreshToken.updateMany({ userId, isRevoked: false }, { isRevoked: true });
+  },
+};
+
+export type { UserDocument };

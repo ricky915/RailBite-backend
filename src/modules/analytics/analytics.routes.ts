@@ -1,31 +1,25 @@
 import { Router } from 'express';
 
+import { requireAuth } from '@/middleware/auth.middleware';
+import { requireRole } from '@/middleware/role.middleware';
 import { validate } from '@/middleware/validate.middleware';
-import { AnalyticsController } from '@/modules/analytics/analytics.controller';
-import { funnelQuerySchema } from '@/modules/analytics/analytics.dto';
-import { AnalyticsRepository } from '@/modules/analytics/analytics.repository';
-import { AnalyticsService } from '@/modules/analytics/analytics.service';
-import { asyncHandler } from '@/utils/asyncHandler';
+import { UserRole } from '@/types/domain.types';
 
-const router = Router();
+import { analyticsController } from './analytics.controller';
+import { dateRangeSchema } from './analytics.dto';
 
-const repository = new AnalyticsRepository();
-const service = new AnalyticsService(repository);
-const controller = new AnalyticsController(service);
+export const analyticsRoutes = Router();
 
-/**
- * @openapi
- * /admin/analytics/funnel:
- *   get:
- *     summary: Conversion funnel data (search to order placed)
- *     tags: [Analytics]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Funnel analytics retrieved }
- *
- * # Note: mounted under the `admin` router, which applies authMiddleware +
- * # requireRole(['admin', 'super_admin']) to every route in this file.
- */
-router.get('/funnel', validate({ query: funnelQuerySchema }), asyncHandler(controller.getFunnel));
+const adminRoles = [UserRole.ADMIN, UserRole.SUPER_ADMIN];
 
-export const analyticsRoutes = router;
+/** @openapi /admin/analytics/funnel: get: { summary: Order funnel (placed to delivered/cancelled), tags: [Analytics], security: [{ bearerAuth: [] }] } */
+analyticsRoutes.get('/funnel', requireAuth, requireRole(...adminRoles), validate({ query: dateRangeSchema }), analyticsController.funnel);
+
+/** @openapi /admin/analytics/revenue: get: { summary: Daily revenue trend, tags: [Analytics], security: [{ bearerAuth: [] }] } */
+analyticsRoutes.get('/revenue', requireAuth, requireRole(...adminRoles), validate({ query: dateRangeSchema }), analyticsController.revenueTrend);
+
+/** @openapi /admin/analytics/stations: get: { summary: Order volume by delivery station, tags: [Analytics], security: [{ bearerAuth: [] }] } */
+analyticsRoutes.get('/stations', requireAuth, requireRole(...adminRoles), validate({ query: dateRangeSchema }), analyticsController.stationHeatmap);
+
+/** @openapi /admin/analytics/payments: get: { summary: Payment method/status breakdown, tags: [Analytics], security: [{ bearerAuth: [] }] } */
+analyticsRoutes.get('/payments', requireAuth, requireRole(...adminRoles), validate({ query: dateRangeSchema }), analyticsController.paymentBreakdown);

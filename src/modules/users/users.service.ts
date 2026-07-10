@@ -1,60 +1,109 @@
+import { authService } from '@/modules/auth/auth.service';
+import { uploadImageBuffer } from '@/services/cloudinary.service';
+import { BadRequestError, NotFoundError } from '@/utils/errors';
+import { comparePassword, hashPassword } from '@/utils/hash';
+import { buildPaginationMeta } from '@/utils/responseFormatter';
+
 import type {
-  ChangePasswordDto,
-  ListUsersQueryDto,
-  RequestMobileChangeDto,
-  UpdateProfileDto,
-  UpdateUserStatusDto,
-} from '@/modules/users/users.dto';
-import type { UsersRepository } from '@/modules/users/users.repository';
-import type { UserProfileView } from '@/modules/users/users.types';
-import type { IUser } from '@/models/User.model';
-import type { PaginatedResult } from '@/types/domain.types';
-import { NotImplementedError } from '@/utils/errors';
+  ChangeMobileInput,
+  ChangePasswordInput,
+  ListUsersInput,
+  UpdateNotificationSettingsInput,
+  UpdatePreferencesInput,
+  UpdateProfileInput,
+} from './users.dto';
+import { usersRepository } from './users.repository';
 
-/**
- * Business logic for profile management and admin user administration
- * (PRD 11.2, 11.20). Scaffold: business rules (mobile re-verification,
- * 30-day soft-delete recovery window, etc.) are planned for a later
- * phase — see TRD scope note in the module README.
- */
-export class UsersService {
-  constructor(private readonly repository: UsersRepository) {}
+export const usersService = {
+  async getMe(userId: string) {
+    const user = await usersRepository.findById(userId);
+    if (!user) throw new NotFoundError('User not found');
+    return user;
+  },
 
-  getProfile(userId: string): Promise<UserProfileView> {
-    throw new NotImplementedError(`UsersService.getProfile(${userId}) is not yet implemented.`);
-  }
+  async updateProfile(userId: string, input: UpdateProfileInput) {
+    const user = await usersRepository.updateProfile(userId, input);
+    if (!user) throw new NotFoundError('User not found');
+    return user;
+  },
 
-  updateProfile(userId: string, dto: UpdateProfileDto): Promise<UserProfileView> {
-    throw new NotImplementedError(
-      `UsersService.updateProfile(${userId}, ${JSON.stringify(dto)}) is not yet implemented.`,
-    );
-  }
+  async changePassword(userId: string, input: ChangePasswordInput) {
+    const user = await usersRepository.findByIdWithPassword(userId);
+    if (!user) throw new NotFoundError('User not found');
 
-  changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
-    throw new NotImplementedError(
-      `UsersService.changePassword(${userId}, ***) is not yet implemented. Payload keys: ${Object.keys(dto).join(', ')}`,
-    );
-  }
+    const matches = await comparePassword(input.currentPassword, user.passwordHash);
+    if (!matches) throw new BadRequestError('Current password is incorrect');
 
-  requestMobileChange(userId: string, dto: RequestMobileChangeDto): Promise<void> {
-    throw new NotImplementedError(
-      `UsersService.requestMobileChange(${userId}, ${dto.newMobile}) is not yet implemented.`,
-    );
-  }
+    const passwordHash = await hashPassword(input.newPassword);
+    await usersRepository.updatePassword(userId, passwordHash);
+  },
 
-  deleteAccount(userId: string): Promise<void> {
-    throw new NotImplementedError(`UsersService.deleteAccount(${userId}) is not yet implemented.`);
-  }
+  async requestMobileChangeOtp(newMobile: string) {
+    return authService.sendOtp({ identifier: newMobile, purpose: 'CHANGE_MOBILE' });
+  },
 
-  listUsers(query: ListUsersQueryDto): Promise<PaginatedResult<IUser>> {
-    throw new NotImplementedError(
-      `UsersService.listUsers(${JSON.stringify(query)}) is not yet implemented.`,
-    );
-  }
+  async changeMobile(userId: string, input: ChangeMobileInput) {
+    await authService.verifyOtp({ identifier: input.newMobile, purpose: 'CHANGE_MOBILE', code: input.otpCode }, {});
+    const user = await usersRepository.updateMobile(userId, input.newMobile);
+    if (!user) throw new NotFoundError('User not found');
+    return user;
+  },
 
-  updateUserStatus(id: string, dto: UpdateUserStatusDto, adminUserId: string): Promise<IUser> {
-    throw new NotImplementedError(
-      `UsersService.updateUserStatus(${id}, isActive=${dto.isActive}, admin=${adminUserId}) is not yet implemented.`,
-    );
-  }
-}
+  async updatePreferences(userId: string, input: UpdatePreferencesInput) {
+    const set: Record<string, unknown> = {};
+    if (input.dietaryTags) set['preferences.dietaryTags'] = input.dietaryTags;
+    if (input.cuisinePreferences) set['preferences.cuisinePreferences'] = input.cuisinePreferences;
+    const user = await usersRepository.updateProfile(userId, set);
+    if (!user) throw new NotFoundError('User not found');
+    return user;
+  },
+
+  async updateNotificationSettings(userId: string, input: UpdateNotificationSettingsInput) {
+    const set: Record<string, unknown> = {};
+    if (input.smsEnabled !== undefined) set['notificationSettings.smsEnabled'] = input.smsEnabled;
+    if (input.emailEnabled !== undefined) set['notificationSettings.emailEnabled'] = input.emailEnabled;
+    if (input.promotionalEnabled !== undefined) set['notificationSettings.promotionalEnabled'] = input.promotionalEnabled;
+    const user = await usersRepository.updateProfile(userId, set);
+    if (!user) throw new NotFoundError('User not found');
+    return user;
+  },
+
+  async uploadPhoto(userId: string, fileBuffer: Buffer) {
+    const url = await uploadImageBuffer(fileBuffer, 'railbite/profile-photos');
+    const user = await usersRepository.updateProfile(userId, { profilePhotoUrl: url });
+    if (!user) throw new NotFoundError('User not found');
+    return user;
+  },
+
+  async requestDeletionOtp(userId: string) {
+    const user = await usersRepository.findById(userId);
+    if (!user) throw new NotFoundError('User not found');
+    return authService.sendOtp({ identifier: user.email, purpose: 'SENSITIVE_ACTION' });
+  },
+
+  async deleteAccount(userId: string, otpCode: string) {
+    const user = await usersRepository.findById(userId);
+    if (!user) throw new NotFoundError('User not found');
+    await authService.verifyOtp({ identifier: user.email, purpose: 'SENSITIVE_ACTION', code: otpCode }, {});
+    await usersRepository.softDelete(userId);
+  },
+
+  async listAll(input: ListUsersInput) {
+    const page = input.page ?? 1;
+    const limit = Math.min(100, input.limit ?? 20);
+    const { items, total } = await usersRepository.list(input.search, (page - 1) * limit, limit);
+    return { items, meta: buildPaginationMeta(page, limit, total) };
+  },
+
+  async setBlocked(id: string, isBlocked: boolean) {
+    const user = await usersRepository.setBlocked(id, isBlocked);
+    if (!user) throw new NotFoundError('User not found');
+    return user;
+  },
+
+  async setRole(id: string, role: string) {
+    const user = await usersRepository.setRole(id, role);
+    if (!user) throw new NotFoundError('User not found');
+    return user;
+  },
+};

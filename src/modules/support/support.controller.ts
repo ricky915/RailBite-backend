@@ -1,47 +1,41 @@
 import type { Request, Response } from 'express';
 
-import type {
-  CreateTicketDto,
-  ListTicketsQueryDto,
-  TicketIdParamsDto,
-  UpdateTicketDto,
-} from '@/modules/support/support.dto';
-import type { SupportService } from '@/modules/support/support.service';
-import { AuthenticationError } from '@/utils/errors';
-import { successResponse } from '@/utils/responseFormatter';
+import { UserRole } from '@/types/domain.types';
+import { asyncHandler } from '@/utils/asyncHandler';
+import { UnauthorizedError } from '@/utils/errors';
+import { sendSuccess } from '@/utils/responseFormatter';
 
-function requireUserId(req: Request): string {
-  if (!req.user) {
-    throw new AuthenticationError('Please log in to continue.');
-  }
-  return req.user.userId;
+import { supportService } from './support.service';
+
+function isStaffRole(role?: UserRole): boolean {
+  return role === UserRole.ADMIN || role === UserRole.SUPER_ADMIN || role === UserRole.SUPPORT_EXEC;
 }
 
-export class SupportController {
-  constructor(private readonly service: SupportService) {}
+export const supportController = {
+  create: asyncHandler(async (req: Request, res: Response) => {
+    const ticket = await supportService.create(req.user?.id, req.body);
+    sendSuccess(res, ticket, { statusCode: 201, message: 'Support ticket created' });
+  }),
 
-  createTicket = async (req: Request, res: Response): Promise<void> => {
-    const dto = req.body as CreateTicketDto;
-    const result = await this.service.createTicket(dto, requireUserId(req));
-    successResponse(res, result, 'Support ticket created successfully.', 201);
-  };
+  listMine: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) throw new UnauthorizedError();
+    const { items, meta } = await supportService.listMine(req.user.id, req.query as never);
+    sendSuccess(res, items, { meta });
+  }),
 
-  listOwnTickets = async (req: Request, res: Response): Promise<void> => {
-    const query = req.query as unknown as ListTicketsQueryDto;
-    const result = await this.service.listOwnTickets(query, requireUserId(req));
-    successResponse(res, result, 'Support tickets retrieved successfully.');
-  };
+  getDetail: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) throw new UnauthorizedError();
+    const ticket = await supportService.getById(req.params.id, req.user.id, isStaffRole(req.user.role));
+    sendSuccess(res, ticket);
+  }),
 
-  getTicketDetail = async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params as unknown as TicketIdParamsDto;
-    const result = await this.service.getTicketDetail(id, requireUserId(req));
-    successResponse(res, result, 'Support ticket detail retrieved successfully.');
-  };
+  listAll: asyncHandler(async (req: Request, res: Response) => {
+    const { items, meta } = await supportService.listAll(req.query as never);
+    sendSuccess(res, items, { meta });
+  }),
 
-  updateTicket = async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params as unknown as TicketIdParamsDto;
-    const dto = req.body as UpdateTicketDto;
-    const result = await this.service.updateTicket(id, dto, requireUserId(req));
-    successResponse(res, result, 'Support ticket updated successfully.');
-  };
-}
+  update: asyncHandler(async (req: Request, res: Response) => {
+    const ticket = await supportService.update(req.params.id, req.body);
+    sendSuccess(res, ticket, { message: 'Ticket updated' });
+  }),
+};

@@ -1,24 +1,28 @@
-import { AuditLogModel } from '@/models/AuditLog.model';
-import type { AuditAction } from '@/types/domain.types';
+import type { Types } from 'mongoose';
 
-export interface WriteAuditLogParams {
-  actor: { userId: string; name: string; role: string };
-  action: AuditAction;
-  module: string;
-  resourceId?: string;
+import { AuditLog } from '@/models/AuditLog.model';
+
+export interface RecordAuditLogInput {
+  actorId: Types.ObjectId | string;
+  actorRole: string;
+  action: string;
+  entityType: string;
+  entityId: Types.ObjectId | string;
   before?: unknown;
   after?: unknown;
-  ipAddress: string;
-  userAgent: string;
-  requestId: string;
+  ipAddress?: string;
 }
 
-/**
- * Persists an immutable audit log entry (TRD 21.3, PRD 11.20). Any
- * module performing a privileged or auth-sensitive mutation should call
- * this rather than writing to `AuditLogModel` directly, keeping the
- * document shape consistent.
- */
-export async function writeAuditLog(params: WriteAuditLogParams): Promise<void> {
-  await AuditLogModel.create(params);
+/** Every admin-mutating action must call this — CLAUDE.md §4 "no exceptions" rule. */
+export async function recordAuditLog(input: RecordAuditLogInput): Promise<void> {
+  await AuditLog.create({
+    actorId: input.actorId,
+    actorRole: input.actorRole,
+    action: input.action,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    before: input.before,
+    after: input.after,
+    ipAddress: input.ipAddress,
+  });
 }

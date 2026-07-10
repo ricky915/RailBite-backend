@@ -1,47 +1,50 @@
-import type { ICoupon } from '@/models/Coupon.model';
-import type { ICouponUsage } from '@/models/CouponUsage.model';
-import type { PaginatedResult } from '@/types/domain.types';
-import { NotImplementedError } from '@/utils/errors';
+import { Coupon } from '@/models/Coupon.model';
+import { CouponUsage } from '@/models/CouponUsage.model';
 
-/**
- * Data access for the coupons module (TRD 3.2.4, 5.3, `coupons` +
- * `couponUsages` collections). Scaffold: eligibility/usage-limit queries
- * and admin CRUD persistence are planned for a later phase.
- */
-export class CouponsRepository {
-  findByCode(code: string): Promise<ICoupon | null> {
-    throw new NotImplementedError(`CouponsRepository.findByCode(${code}) is not yet implemented.`);
-  }
+export const couponsRepository = {
+  async listActive() {
+    const now = new Date();
+    return Coupon.find({ isDeleted: false, isActive: true, validFrom: { $lte: now }, validUntil: { $gte: now } }).sort({
+      createdAt: -1,
+    });
+  },
 
-  findById(id: string): Promise<ICoupon | null> {
-    throw new NotImplementedError(`CouponsRepository.findById(${id}) is not yet implemented.`);
-  }
+  async findByCode(code: string) {
+    return Coupon.findOne({ code: code.toUpperCase(), isDeleted: false });
+  },
 
-  findMany(filter: Record<string, unknown>, skip: number, limit: number): Promise<PaginatedResult<ICoupon>> {
-    throw new NotImplementedError(
-      `CouponsRepository.findMany(${JSON.stringify(filter)}, skip=${skip}, limit=${limit}) is not yet implemented.`,
-    );
-  }
+  async findById(id: string) {
+    return Coupon.findOne({ _id: id, isDeleted: false });
+  },
 
-  create(data: Partial<ICoupon>): Promise<ICoupon> {
-    throw new NotImplementedError(`CouponsRepository.create(${JSON.stringify(data)}) is not yet implemented.`);
-  }
+  async countUsageByUser(couponId: string, userId: string) {
+    return CouponUsage.countDocuments({ couponId, userId });
+  },
 
-  updateById(id: string, data: Partial<ICoupon>): Promise<ICoupon | null> {
-    throw new NotImplementedError(
-      `CouponsRepository.updateById(${id}, ${JSON.stringify(data)}) is not yet implemented.`,
-    );
-  }
+  async recordUsage(couponId: string, userId: string, orderId: string, discountAppliedPaise: number) {
+    await Promise.all([
+      CouponUsage.create({ couponId, userId, orderId, discountAppliedPaise }),
+      Coupon.findByIdAndUpdate(couponId, { $inc: { usedCount: 1 } }),
+    ]);
+  },
 
-  countUsageByUser(couponId: string, userId: string): Promise<number> {
-    throw new NotImplementedError(
-      `CouponsRepository.countUsageByUser(${couponId}, ${userId}) is not yet implemented.`,
-    );
-  }
+  async create(data: Record<string, unknown>) {
+    return Coupon.create(data);
+  },
 
-  createUsageRecord(data: Partial<ICouponUsage>): Promise<ICouponUsage> {
-    throw new NotImplementedError(
-      `CouponsRepository.createUsageRecord(${JSON.stringify(data)}) is not yet implemented.`,
-    );
-  }
-}
+  async update(id: string, data: Record<string, unknown>, updatedBy: string) {
+    return Coupon.findOneAndUpdate({ _id: id, isDeleted: false }, { ...data, updatedBy }, { new: true });
+  },
+
+  async softDelete(id: string, updatedBy: string) {
+    return Coupon.findOneAndUpdate({ _id: id, isDeleted: false }, { isDeleted: true, isActive: false, updatedBy }, { new: true });
+  },
+
+  async listAll(skip: number, limit: number) {
+    const [items, total] = await Promise.all([
+      Coupon.find({ isDeleted: false }).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Coupon.countDocuments({ isDeleted: false }),
+    ]);
+    return { items, total };
+  },
+};

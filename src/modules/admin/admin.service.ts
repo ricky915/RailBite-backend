@@ -1,76 +1,26 @@
-import type {
-  ApproveRestaurantDto,
-  ListAdminOrdersQueryDto,
-  ListAuditLogsQueryDto,
-  ListRestaurantApplicationsQueryDto,
-  OverrideOrderStatusDto,
-  SuspendRestaurantDto,
-} from '@/modules/admin/admin.dto';
-import type { AdminRepository } from '@/modules/admin/admin.repository';
-import type {
-  AdminOrderListItemView,
-  AdminRestaurantApplicationView,
-  AuditLogEntryView,
-} from '@/modules/admin/admin.types';
-import type { PaginatedResult } from '@/types/domain.types';
-import { NotImplementedError } from '@/utils/errors';
+import { UserRole } from '@/types/domain.types';
+import { buildPaginationMeta } from '@/utils/responseFormatter';
 
-/**
- * Admin-only cross-module business logic (PRD 11.15, 11.16, 11.20).
- * Scaffold: all admin override/approval/audit-log queries are planned
- * for a later phase; every mutation here must be written to the audit
- * log once implemented (TRD 21.3).
- */
-export class AdminService {
-  constructor(private readonly repository: AdminRepository) {}
+import type { ListAuditLogsInput } from './admin.dto';
+import { adminRepository } from './admin.repository';
 
-  listAllOrders(query: ListAdminOrdersQueryDto): Promise<PaginatedResult<AdminOrderListItemView>> {
-    throw new NotImplementedError(
-      `AdminService.listAllOrders(${JSON.stringify(query)}) is not yet implemented.`,
-    );
-  }
+const ALL_ROLES = Object.values(UserRole);
 
-  overrideOrderStatus(
-    id: string,
-    dto: OverrideOrderStatusDto,
-    adminUserId: string,
-  ): Promise<AdminOrderListItemView> {
-    throw new NotImplementedError(
-      `AdminService.overrideOrderStatus(${id}, status=${dto.status}, admin=${adminUserId}) is not yet implemented.`,
-    );
-  }
+export const adminService = {
+  async dashboardSummary() {
+    return adminRepository.dashboardSummary();
+  },
 
-  listRestaurantApplications(
-    query: ListRestaurantApplicationsQueryDto,
-  ): Promise<PaginatedResult<AdminRestaurantApplicationView>> {
-    throw new NotImplementedError(
-      `AdminService.listRestaurantApplications(${JSON.stringify(query)}) is not yet implemented.`,
-    );
-  }
+  async listAuditLogs(input: ListAuditLogsInput) {
+    const page = input.page ?? 1;
+    const limit = Math.min(100, input.limit ?? 20);
+    const { items, total } = await adminRepository.listAuditLogs({ entityType: input.entityType, action: input.action }, (page - 1) * limit, limit);
+    return { items, meta: buildPaginationMeta(page, limit, total) };
+  },
 
-  approveRestaurant(
-    id: string,
-    dto: ApproveRestaurantDto,
-    adminUserId: string,
-  ): Promise<AdminRestaurantApplicationView> {
-    throw new NotImplementedError(
-      `AdminService.approveRestaurant(${id}, admin=${adminUserId}, comments=${dto.comments ?? ''}) is not yet implemented.`,
-    );
-  }
-
-  suspendRestaurant(
-    id: string,
-    dto: SuspendRestaurantDto,
-    adminUserId: string,
-  ): Promise<AdminRestaurantApplicationView> {
-    throw new NotImplementedError(
-      `AdminService.suspendRestaurant(${id}, admin=${adminUserId}, reason=${dto.reason}) is not yet implemented.`,
-    );
-  }
-
-  listAuditLogs(query: ListAuditLogsQueryDto): Promise<PaginatedResult<AuditLogEntryView>> {
-    throw new NotImplementedError(
-      `AdminService.listAuditLogs(${JSON.stringify(query)}) is not yet implemented.`,
-    );
-  }
-}
+  async listRoles() {
+    const counts = await adminRepository.roleCounts();
+    const countMap = new Map(counts.map((c) => [c._id, c.count]));
+    return ALL_ROLES.map((role) => ({ role, userCount: countMap.get(role) ?? 0 }));
+  },
+};

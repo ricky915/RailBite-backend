@@ -1,128 +1,125 @@
 import { Router } from 'express';
 
-import { authMiddleware } from '@/middleware/auth.middleware';
+import { optionalAuth, requireAuth } from '@/middleware/auth.middleware';
 import { requireRole } from '@/middleware/role.middleware';
-import { publicRateLimiter } from '@/middleware/rateLimiter';
 import { validate } from '@/middleware/validate.middleware';
-import { RestaurantsController } from '@/modules/restaurants/restaurants.controller';
+import { UserRole } from '@/types/domain.types';
+
+import { restaurantsController } from './restaurants.controller';
 import {
   createRestaurantSchema,
-  listRestaurantsQuerySchema,
-  restaurantIdParamsSchema,
+  listRestaurantsSchema,
+  rejectOrSuspendRestaurantSchema,
+  restaurantIdParamSchema,
   updateRestaurantSchema,
-} from '@/modules/restaurants/restaurants.dto';
-import { RestaurantsRepository } from '@/modules/restaurants/restaurants.repository';
-import { RestaurantsService } from '@/modules/restaurants/restaurants.service';
-import { UserRole } from '@/types/domain.types';
-import { asyncHandler } from '@/utils/asyncHandler';
+} from './restaurants.dto';
 
-const router = Router();
-
-const repository = new RestaurantsRepository();
-const service = new RestaurantsService(repository);
-const controller = new RestaurantsController(service);
+export const restaurantsRoutes = Router();
 
 /**
  * @openapi
  * /restaurants:
  *   get:
- *     summary: List restaurants for a delivery station and time window
+ *     summary: List approved restaurants (optionally filtered by station/cuisine/search)
  *     tags: [Restaurants]
- *     responses:
- *       200: { description: Restaurants retrieved }
  */
-router.get(
-  '/',
-  publicRateLimiter,
-  validate({ query: listRestaurantsQuerySchema }),
-  asyncHandler(controller.list),
-);
+restaurantsRoutes.get('/', optionalAuth, validate({ query: listRestaurantsSchema }), restaurantsController.list);
+
+/**
+ * @openapi
+ * /restaurants/popular:
+ *   get:
+ *     summary: Top-rated restaurants for homepage surfacing
+ *     tags: [Restaurants]
+ */
+restaurantsRoutes.get('/popular', restaurantsController.popular);
 
 /**
  * @openapi
  * /restaurants/{id}:
  *   get:
- *     summary: Get restaurant detail
+ *     summary: Restaurant detail
  *     tags: [Restaurants]
- *     responses:
- *       200: { description: Restaurant detail retrieved }
- *       404: { description: Restaurant not found }
  */
-router.get(
-  '/:id',
-  publicRateLimiter,
-  validate({ params: restaurantIdParamsSchema }),
-  asyncHandler(controller.getDetail),
-);
+restaurantsRoutes.get('/:id', validate({ params: restaurantIdParamSchema }), restaurantsController.getDetail);
 
 /**
  * @openapi
  * /restaurants/{id}/menu:
  *   get:
- *     summary: Get a restaurant's full menu with categories and items
+ *     summary: Categories + menu items for a restaurant
  *     tags: [Restaurants]
- *     responses:
- *       200: { description: Menu retrieved }
  */
-router.get(
-  '/:id/menu',
-  publicRateLimiter,
-  validate({ params: restaurantIdParamsSchema }),
-  asyncHandler(controller.getMenu),
-);
+restaurantsRoutes.get('/:id/menu', validate({ params: restaurantIdParamSchema }), restaurantsController.getMenu);
 
 /**
  * @openapi
  * /restaurants:
  *   post:
- *     summary: Submit a new restaurant for onboarding (restaurant manager)
+ *     summary: Submit a new restaurant for approval (restaurant_manager)
  *     tags: [Restaurants]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       201: { description: Onboarding submitted for review }
+ *     security: [{ bearerAuth: [] }]
  */
-router.post(
+restaurantsRoutes.post(
   '/',
-  authMiddleware,
-  requireRole([UserRole.RESTAURANT_MANAGER, UserRole.ADMIN, UserRole.SUPER_ADMIN]),
+  requireAuth,
+  requireRole(UserRole.RESTAURANT_MANAGER),
   validate({ body: createRestaurantSchema }),
-  asyncHandler(controller.submitOnboarding),
+  restaurantsController.create,
 );
 
 /**
  * @openapi
  * /restaurants/{id}:
  *   patch:
- *     summary: Update restaurant profile (own restaurant only)
+ *     summary: Update own restaurant (owner manager or admin)
  *     tags: [Restaurants]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Restaurant updated }
+ *     security: [{ bearerAuth: [] }]
  */
-router.patch(
+restaurantsRoutes.patch(
   '/:id',
-  authMiddleware,
-  requireRole([UserRole.RESTAURANT_MANAGER, UserRole.ADMIN, UserRole.SUPER_ADMIN]),
-  validate({ params: restaurantIdParamsSchema, body: updateRestaurantSchema }),
-  asyncHandler(controller.update),
+  requireAuth,
+  requireRole(UserRole.RESTAURANT_MANAGER, UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validate({ params: restaurantIdParamSchema, body: updateRestaurantSchema }),
+  restaurantsController.update,
 );
 
-/**
- * @openapi
- * /restaurants/{id}/disable:
- *   patch:
- *     summary: Self-service disable of a restaurant (removes from listings)
- *     tags: [Restaurants]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Restaurant disabled }
- */
-router.patch(
-  '/:id/disable',
-  authMiddleware,
-  requireRole([UserRole.RESTAURANT_MANAGER, UserRole.ADMIN, UserRole.SUPER_ADMIN]),
-  validate({ params: restaurantIdParamsSchema }),
-  asyncHandler(controller.disable),
+const adminRoles = [UserRole.ADMIN, UserRole.SUPER_ADMIN];
+
+export const adminRestaurantsRoutes = Router();
+
+/** @openapi /admin/restaurants: get: { summary: List all restaurants including pending/suspended (admin), tags: [Restaurants], security: [{ bearerAuth: [] }] } */
+adminRestaurantsRoutes.get(
+  '/',
+  requireAuth,
+  requireRole(...adminRoles),
+  validate({ query: listRestaurantsSchema }),
+  restaurantsController.list,
 );
 
-export const restaurantsRoutes = router;
+/** @openapi /admin/restaurants/{id}/approve: patch: { summary: Approve a pending restaurant, tags: [Restaurants], security: [{ bearerAuth: [] }] } */
+adminRestaurantsRoutes.patch(
+  '/:id/approve',
+  requireAuth,
+  requireRole(...adminRoles),
+  validate({ params: restaurantIdParamSchema }),
+  restaurantsController.approve,
+);
+
+/** @openapi /admin/restaurants/{id}/reject: patch: { summary: Reject a pending restaurant, tags: [Restaurants], security: [{ bearerAuth: [] }] } */
+adminRestaurantsRoutes.patch(
+  '/:id/reject',
+  requireAuth,
+  requireRole(...adminRoles),
+  validate({ params: restaurantIdParamSchema, body: rejectOrSuspendRestaurantSchema }),
+  restaurantsController.reject,
+);
+
+/** @openapi /admin/restaurants/{id}/suspend: patch: { summary: Suspend an active restaurant, tags: [Restaurants], security: [{ bearerAuth: [] }] } */
+adminRestaurantsRoutes.patch(
+  '/:id/suspend',
+  requireAuth,
+  requireRole(...adminRoles),
+  validate({ params: restaurantIdParamSchema, body: rejectOrSuspendRestaurantSchema }),
+  restaurantsController.suspend,
+);

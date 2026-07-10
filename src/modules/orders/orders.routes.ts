@@ -1,115 +1,51 @@
 import { Router } from 'express';
 
-import { authMiddleware } from '@/middleware/auth.middleware';
-import { authenticatedRateLimiter } from '@/middleware/rateLimiter';
+import { requireAuth } from '@/middleware/auth.middleware';
 import { requireRole } from '@/middleware/role.middleware';
 import { validate } from '@/middleware/validate.middleware';
-import { OrdersController } from '@/modules/orders/orders.controller';
+import { UserRole } from '@/types/domain.types';
+
+import { ordersController } from './orders.controller';
 import {
   cancelOrderSchema,
   createOrderSchema,
-  listOrdersQuerySchema,
-  orderIdParamsSchema,
+  listOrdersSchema,
+  orderIdParamSchema,
   updateOrderStatusSchema,
-} from '@/modules/orders/orders.dto';
-import { OrdersRepository } from '@/modules/orders/orders.repository';
-import { OrdersService } from '@/modules/orders/orders.service';
-import { UserRole } from '@/types/domain.types';
-import { asyncHandler } from '@/utils/asyncHandler';
+} from './orders.dto';
 
-const router = Router();
+export const ordersRoutes = Router();
 
-const repository = new OrdersRepository();
-const service = new OrdersService(repository);
-const controller = new OrdersController(service);
+/** @openapi /orders: post: { summary: Create an order (idempotent via Idempotency-Key header), tags: [Orders], security: [{ bearerAuth: [] }] } */
+ordersRoutes.post('/', requireAuth, validate({ body: createOrderSchema }), ordersController.create);
 
-/**
- * @openapi
- * /orders:
- *   post:
- *     summary: Place an order (checkout + payment initiation)
- *     tags: [Orders]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       201: { description: Order placed }
- *       422: { description: Validation failed }
- */
-router.post(
-  '/',
-  authMiddleware,
-  authenticatedRateLimiter,
-  validate({ body: createOrderSchema }),
-  asyncHandler(controller.placeOrder),
-);
+/** @openapi /orders: get: { summary: List the authenticated passenger's own orders, tags: [Orders], security: [{ bearerAuth: [] }] } */
+ordersRoutes.get('/', requireAuth, validate({ query: listOrdersSchema }), ordersController.list);
 
-/**
- * @openapi
- * /orders:
- *   get:
- *     summary: List the authenticated passenger's own orders
- *     tags: [Orders]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Orders retrieved }
- */
-router.get(
-  '/',
-  authMiddleware,
-  validate({ query: listOrdersQuerySchema }),
-  asyncHandler(controller.listOwnOrders),
-);
+/** @openapi /orders/{id}: get: { summary: Order detail (own order, or restaurant/admin staff), tags: [Orders], security: [{ bearerAuth: [] }] } */
+ordersRoutes.get('/:id', requireAuth, validate({ params: orderIdParamSchema }), ordersController.getDetail);
 
-/**
- * @openapi
- * /orders/{id}:
- *   get:
- *     summary: Get order detail with status timeline
- *     tags: [Orders]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Order detail retrieved }
- *       404: { description: Order not found }
- */
-router.get(
-  '/:id',
-  authMiddleware,
-  validate({ params: orderIdParamsSchema }),
-  asyncHandler(controller.getOrderDetail),
-);
-
-/**
- * @openapi
- * /orders/{id}/cancel:
- *   post:
- *     summary: Cancel an order (subject to cancellation policy)
- *     tags: [Orders]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Order cancelled }
- */
-router.post(
+/** @openapi /orders/{id}/cancel: post: { summary: Cancel own order (pre-acceptance only), tags: [Orders], security: [{ bearerAuth: [] }] } */
+ordersRoutes.post(
   '/:id/cancel',
-  authMiddleware,
-  validate({ params: orderIdParamsSchema, body: cancelOrderSchema }),
-  asyncHandler(controller.cancelOrder),
+  requireAuth,
+  validate({ params: orderIdParamSchema, body: cancelOrderSchema }),
+  ordersController.cancel,
 );
 
-/**
- * @openapi
- * /orders/{id}/status:
- *   patch:
- *     summary: Update order status (restaurant staff/manager)
- *     tags: [Orders]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Order status updated }
- */
-router.patch(
+/** @openapi /orders/{id}/reorder: post: { summary: Re-validate a past order's items for a new cart, tags: [Orders], security: [{ bearerAuth: [] }] } */
+ordersRoutes.post('/:id/reorder', requireAuth, validate({ params: orderIdParamSchema }), ordersController.reorder);
+
+/** @openapi /orders/{id}/status: patch: { summary: Progress an order's status (restaurant staff/admin, state-machine enforced), tags: [Orders], security: [{ bearerAuth: [] }] } */
+ordersRoutes.patch(
   '/:id/status',
-  authMiddleware,
-  requireRole([UserRole.RESTAURANT_MANAGER, UserRole.RESTAURANT_STAFF, UserRole.ADMIN, UserRole.SUPER_ADMIN]),
-  validate({ params: orderIdParamsSchema, body: updateOrderStatusSchema }),
-  asyncHandler(controller.updateStatus),
+  requireAuth,
+  requireRole(UserRole.RESTAURANT_MANAGER, UserRole.RESTAURANT_STAFF, UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validate({ params: orderIdParamSchema, body: updateOrderStatusSchema }),
+  ordersController.updateStatus,
 );
 
-export const ordersRoutes = router;
+export const adminOrdersRoutes = Router();
+
+/** @openapi /admin/orders: get: { summary: List all orders (admin), tags: [Orders], security: [{ bearerAuth: [] }] } */
+adminOrdersRoutes.get('/', requireAuth, requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN), ordersController.listAdmin);

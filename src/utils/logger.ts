@@ -2,35 +2,24 @@ import winston from 'winston';
 
 import { config } from '@/config/index';
 
-const { combine, timestamp, printf, colorize, json, errors } = winston.format;
+const { combine, timestamp, errors, json, colorize, printf } = winston.format;
 
 const devFormat = combine(
   colorize(),
-  timestamp(),
+  timestamp({ format: 'HH:mm:ss' }),
   errors({ stack: true }),
-  printf(({ timestamp: ts, level, message, ...meta }) => {
+  printf(({ level, message, timestamp: ts, ...meta }) => {
     const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
-    return `${String(ts)} [${level}]: ${String(message)}${metaStr}`;
+    return `${ts} [${level}] ${message}${metaStr}`;
   }),
 );
 
 const prodFormat = combine(timestamp(), errors({ stack: true }), json());
 
-/**
- * Shared Winston logger (TRD 10.8, 21). Log levels: error, warn, info,
- * http, debug. Production logs at `info`; development at `debug`.
- */
 export const logger = winston.createLogger({
-  level: config.app.nodeEnv === 'production' ? 'info' : 'debug',
-  format: config.app.nodeEnv === 'production' ? prodFormat : devFormat,
+  level: config.app.isProduction ? 'info' : 'debug',
+  format: config.app.isProduction ? prodFormat : devFormat,
+  defaultMeta: { service: 'railbite-api' },
   transports: [new winston.transports.Console()],
+  silent: config.app.isTest,
 });
-
-if (config.app.nodeEnv === 'production') {
-  logger.add(
-    new winston.transports.File({
-      filename: 'error.log',
-      level: 'error',
-    }),
-  );
-}

@@ -1,39 +1,55 @@
-import type { IRating } from '@/models/Rating.model';
-import type { PaginatedResult } from '@/types/domain.types';
-import { NotImplementedError } from '@/utils/errors';
+import { Types, type FilterQuery } from 'mongoose';
 
-/**
- * Data access for the ratings module (TRD 3.2.4, 5.3, `ratings`
- * collection). Scaffold: eligibility checks (delivered-order-only),
- * weighted average recalculation, and content-moderation flags are
- * planned for a later phase.
- */
-export class RatingsRepository {
-  findByOrderId(orderId: string): Promise<IRating | null> {
-    throw new NotImplementedError(`RatingsRepository.findByOrderId(${orderId}) is not yet implemented.`);
-  }
+import { MenuItem } from '@/models/MenuItem.model';
+import { Rating, type RatingDocument } from '@/models/Rating.model';
+import { Restaurant } from '@/models/Restaurant.model';
 
-  findById(id: string): Promise<IRating | null> {
-    throw new NotImplementedError(`RatingsRepository.findById(${id}) is not yet implemented.`);
-  }
+export const ratingsRepository = {
+  async create(data: Record<string, unknown>) {
+    return Rating.create(data);
+  },
 
-  findByRestaurantId(
-    restaurantId: string,
-    skip: number,
-    limit: number,
-  ): Promise<PaginatedResult<IRating>> {
-    throw new NotImplementedError(
-      `RatingsRepository.findByRestaurantId(${restaurantId}, skip=${skip}, limit=${limit}) is not yet implemented.`,
-    );
-  }
+  async findById(id: string) {
+    return Rating.findOne({ _id: id, isDeleted: false });
+  },
 
-  create(data: Partial<IRating>): Promise<IRating> {
-    throw new NotImplementedError(`RatingsRepository.create(${JSON.stringify(data)}) is not yet implemented.`);
-  }
+  async list(filters: { restaurantId?: string; menuItemId?: string; featured?: boolean }, skip: number, limit: number, includeHidden: boolean) {
+    const query: FilterQuery<RatingDocument> = { isDeleted: false };
+    if (!includeHidden) query.isHidden = false;
+    if (filters.restaurantId) query.restaurantId = filters.restaurantId;
+    if (filters.menuItemId) query.menuItemId = filters.menuItemId;
+    if (filters.featured) query.isFeatured = true;
 
-  updateById(id: string, data: Partial<IRating>): Promise<IRating | null> {
-    throw new NotImplementedError(
-      `RatingsRepository.updateById(${id}, ${JSON.stringify(data)}) is not yet implemented.`,
-    );
-  }
-}
+    const [items, total] = await Promise.all([
+      Rating.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Rating.countDocuments(query),
+    ]);
+    return { items, total };
+  },
+
+  async update(id: string, data: Record<string, unknown>) {
+    return Rating.findOneAndUpdate({ _id: id, isDeleted: false }, data, { new: true });
+  },
+
+  async recomputeRestaurantAggregate(restaurantId: string) {
+    const [agg] = await Rating.aggregate<{ avg: number; count: number }>([
+      { $match: { restaurantId: new Types.ObjectId(restaurantId), isDeleted: false, isHidden: false } },
+      { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
+    ]);
+    await Restaurant.findByIdAndUpdate(restaurantId, {
+      avgRating: agg ? Math.round(agg.avg * 10) / 10 : 0,
+      ratingCount: agg?.count ?? 0,
+    });
+  },
+
+  async recomputeMenuItemAggregate(menuItemId: string) {
+    const [agg] = await Rating.aggregate<{ avg: number; count: number }>([
+      { $match: { menuItemId: new Types.ObjectId(menuItemId), isDeleted: false, isHidden: false } },
+      { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
+    ]);
+    await MenuItem.findByIdAndUpdate(menuItemId, {
+      avgRating: agg ? Math.round(agg.avg * 10) / 10 : 0,
+      ratingCount: agg?.count ?? 0,
+    });
+  },
+};

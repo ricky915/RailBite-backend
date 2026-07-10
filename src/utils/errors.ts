@@ -1,77 +1,63 @@
-import type { FieldError } from '@/types/api.types';
-
-/**
- * Base application error. Services throw `AppError` (or one of its
- * subclasses below) instead of generic `Error` so the global error handler
- * can format a consistent error envelope (TRD 10.7).
- *
- * `isOperational` distinguishes expected, handled failures (bad input,
- * missing resource, business rule violation) from unexpected programming
- * errors. Only operational errors are safe to surface to the client as-is.
- */
 export class AppError extends Error {
   public readonly statusCode: number;
-  public readonly isOperational: boolean;
-  public readonly errors?: FieldError[];
+  public readonly code: string;
+  public readonly details?: unknown;
+  public readonly isOperational = true;
 
-  constructor(message: string, statusCode = 500, isOperational = true, errors?: FieldError[]) {
+  constructor(statusCode: number, code: string, message: string, details?: unknown) {
     super(message);
-    this.name = this.constructor.name;
     this.statusCode = statusCode;
-    this.isOperational = isOperational;
-    this.errors = errors;
+    this.code = code;
+    this.details = details;
+    Object.setPrototypeOf(this, new.target.prototype);
     Error.captureStackTrace(this, this.constructor);
   }
 }
 
+export class BadRequestError extends AppError {
+  constructor(message = 'Bad request', details?: unknown) {
+    super(400, 'BAD_REQUEST', message, details);
+  }
+}
+
 export class ValidationError extends AppError {
-  constructor(message = 'Validation failed.', errors?: FieldError[]) {
-    super(message, 422, true, errors);
+  constructor(message = 'Validation failed', details?: unknown) {
+    super(422, 'VALIDATION_ERROR', message, details);
   }
 }
 
-export class AuthenticationError extends AppError {
-  constructor(message = 'Authentication required.') {
-    super(message, 401, true);
+export class UnauthorizedError extends AppError {
+  constructor(message = 'Unauthorized') {
+    super(401, 'UNAUTHORIZED', message);
   }
 }
 
-export class AuthorizationError extends AppError {
-  constructor(message = 'You do not have permission to perform this action.') {
-    super(message, 403, true);
+export class ForbiddenError extends AppError {
+  constructor(message = 'Forbidden') {
+    super(403, 'FORBIDDEN', message);
   }
 }
 
 export class NotFoundError extends AppError {
-  constructor(message = 'Resource not found.') {
-    super(message, 404, true);
+  constructor(message = 'Resource not found') {
+    super(404, 'NOT_FOUND', message);
   }
 }
 
 export class ConflictError extends AppError {
-  constructor(message = 'Resource already exists.') {
-    super(message, 409, true);
+  constructor(message = 'Conflict', details?: unknown) {
+    super(409, 'CONFLICT', message, details);
   }
 }
 
-export class PaymentError extends AppError {
-  constructor(message = 'Payment could not be processed.') {
-    super(message, 402, true);
+export class TooManyRequestsError extends AppError {
+  constructor(message = 'Too many requests') {
+    super(429, 'TOO_MANY_REQUESTS', message);
   }
 }
 
-export class ExternalServiceError extends AppError {
-  constructor(message = 'An external service is currently unavailable.') {
-    super(message, 502, true);
-  }
-}
-
-/**
- * Thrown by scaffolded module methods that are intentionally not yet
- * implemented. Returns HTTP 501 (Not Implemented).
- */
-export class NotImplementedError extends AppError {
-  constructor(message = 'This feature is not yet implemented.') {
-    super(message, 501, true);
+export class InternalServerError extends AppError {
+  constructor(message = 'Internal server error', details?: unknown) {
+    super(500, 'INTERNAL_SERVER_ERROR', message, details);
   }
 }

@@ -1,43 +1,31 @@
 import type { Request, Response } from 'express';
 
-import type {
-  CreateRatingDto,
-  ListRatingsQueryDto,
-  RatingIdParamsDto,
-  RestaurantIdParamsDto,
-  UpdateRatingDto,
-} from '@/modules/ratings/ratings.dto';
-import type { RatingsService } from '@/modules/ratings/ratings.service';
-import { AuthenticationError } from '@/utils/errors';
-import { successResponse } from '@/utils/responseFormatter';
+import { asyncHandler } from '@/utils/asyncHandler';
+import { UnauthorizedError } from '@/utils/errors';
+import { sendSuccess } from '@/utils/responseFormatter';
 
-function requireUserId(req: Request): string {
-  if (!req.user) {
-    throw new AuthenticationError('Please log in to continue.');
-  }
-  return req.user.userId;
-}
+import { ratingsService } from './ratings.service';
 
-export class RatingsController {
-  constructor(private readonly service: RatingsService) {}
+export const ratingsController = {
+  create: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) throw new UnauthorizedError();
+    const rating = await ratingsService.create(req.user.id, req.body);
+    sendSuccess(res, rating, { statusCode: 201, message: 'Rating submitted' });
+  }),
 
-  submit = async (req: Request, res: Response): Promise<void> => {
-    const dto = req.body as CreateRatingDto;
-    const result = await this.service.submitRating(dto, requireUserId(req));
-    successResponse(res, result, 'Rating submitted successfully.', 201);
-  };
+  list: asyncHandler(async (req: Request, res: Response) => {
+    const { items, meta } = await ratingsService.list(req.query as never);
+    sendSuccess(res, items, { meta });
+  }),
 
-  update = async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params as unknown as RatingIdParamsDto;
-    const dto = req.body as UpdateRatingDto;
-    const result = await this.service.updateRating(id, dto, requireUserId(req));
-    successResponse(res, result, 'Rating updated successfully.');
-  };
+  update: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) throw new UnauthorizedError();
+    const rating = await ratingsService.update(req.params.id, req.user.id, req.body);
+    sendSuccess(res, rating, { message: 'Rating updated' });
+  }),
 
-  listByRestaurant = async (req: Request, res: Response): Promise<void> => {
-    const { restaurantId } = req.params as unknown as RestaurantIdParamsDto;
-    const query = req.query as unknown as ListRatingsQueryDto;
-    const result = await this.service.listByRestaurant(restaurantId, query);
-    successResponse(res, result, 'Reviews retrieved successfully.');
-  };
-}
+  moderate: asyncHandler(async (req: Request, res: Response) => {
+    const rating = await ratingsService.moderate(req.params.id, req.body);
+    sendSuccess(res, rating, { message: 'Rating moderated' });
+  }),
+};

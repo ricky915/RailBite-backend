@@ -1,52 +1,61 @@
-import type { Document, Types } from 'mongoose';
-import { model, Schema } from 'mongoose';
+import type { Types } from 'mongoose';
+import { Schema, model } from 'mongoose';
 
-import { PaymentMode, PaymentStatus } from '@/types/domain.types';
+import { PaymentMethod, PaymentStatus } from '@/types/domain.types';
 
-/**
- * `payments` collection (TRD 12.1). References the order via `orderId`;
- * stores the gateway transaction reference and raw response for audit.
- */
-export interface IPayment extends Document {
+export interface RefundRecord {
+  refundId: string;
+  amountPaise: number;
+  reason: string;
+  status: 'INITIATED' | 'PROCESSED' | 'FAILED';
+  processedAt?: Date;
+}
+
+export interface PaymentDocument {
+  _id: Types.ObjectId;
   orderId: Types.ObjectId;
-  userId: Types.ObjectId;
-  mode: PaymentMode;
-  status: PaymentStatus;
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  razorpaySignature?: string;
   amountPaise: number;
   currency: string;
-  gatewayOrderId?: string;
-  gatewayPaymentId?: string;
-  gatewaySignature?: string;
-  gatewayResponse?: Record<string, unknown>;
-  refundedAmountPaise: number;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  capturedAt?: Date;
   failureReason?: string;
+  refunds: RefundRecord[];
+  webhookEventIds: string[];
   createdAt: Date;
   updatedAt: Date;
 }
 
-const paymentSchema = new Schema<IPayment>(
+const refundSchema = new Schema<RefundRecord>(
   {
-    orderId: { type: Schema.Types.ObjectId, ref: 'Order', required: true },
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    mode: { type: String, enum: Object.values(PaymentMode), required: true },
-    status: {
-      type: String,
-      enum: Object.values(PaymentStatus),
-      default: PaymentStatus.PENDING,
-    },
-    amountPaise: { type: Number, required: true, min: 0 },
+    refundId: { type: String, required: true },
+    amountPaise: { type: Number, required: true },
+    reason: { type: String, required: true },
+    status: { type: String, enum: ['INITIATED', 'PROCESSED', 'FAILED'], required: true },
+    processedAt: { type: Date },
+  },
+  { _id: false },
+);
+
+const paymentSchema = new Schema<PaymentDocument>(
+  {
+    orderId: { type: Schema.Types.ObjectId, ref: 'Order', required: true, index: true },
+    razorpayOrderId: { type: String, unique: true, sparse: true },
+    razorpayPaymentId: { type: String, unique: true, sparse: true },
+    razorpaySignature: { type: String },
+    amountPaise: { type: Number, required: true },
     currency: { type: String, default: 'INR' },
-    gatewayOrderId: { type: String },
-    gatewayPaymentId: { type: String },
-    gatewaySignature: { type: String },
-    gatewayResponse: { type: Schema.Types.Mixed },
-    refundedAmountPaise: { type: Number, default: 0, min: 0 },
+    method: { type: String, enum: Object.values(PaymentMethod), required: true },
+    status: { type: String, enum: Object.values(PaymentStatus), required: true, default: PaymentStatus.PENDING },
+    capturedAt: { type: Date },
     failureReason: { type: String },
+    refunds: { type: [refundSchema], default: [] },
+    webhookEventIds: { type: [String], default: [] },
   },
   { timestamps: true },
 );
 
-paymentSchema.index({ orderId: 1 });
-paymentSchema.index({ gatewayPaymentId: 1 });
-
-export const PaymentModel = model<IPayment>('Payment', paymentSchema);
+export const Payment = model<PaymentDocument>('Payment', paymentSchema);

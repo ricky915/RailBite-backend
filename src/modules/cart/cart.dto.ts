@@ -1,27 +1,22 @@
 import { z } from 'zod';
 
-import { coachNumber, mongoId, seatNumber, trainNumber } from '@/validations/common.validations';
+const objectIdSchema = z.string().regex(/^[a-f0-9]{24}$/i, 'Invalid id');
 
-const cartCustomizationSchema = z.object({
-  label: z.string().min(1),
-  value: z.string().min(1),
-  additionalCharge: z.number().min(0).default(0),
+const customizationSelectionSchema = z.object({
+  groupName: z.string().trim().min(1),
+  optionLabel: z.string().trim().min(1),
 });
 
 const cartItemSchema = z.object({
-  menuItemId: mongoId,
-  quantity: z.number().int().min(1).max(10),
-  customizations: z.array(cartCustomizationSchema).default([]),
-  specialNote: z.string().max(200).optional(),
+  menuItemId: objectIdSchema,
+  quantity: z.number().int().min(1).max(20),
+  customizations: z.array(customizationSelectionSchema).default([]),
+  specialNote: z.string().trim().max(300).optional(),
 });
 
 export const validateCartSchema = z.object({
-  restaurantId: mongoId,
-  items: z.array(cartItemSchema).min(1, 'Cart cannot be empty.'),
-  trainNumber,
-  deliveryStation: z.string().min(1),
-  coach: coachNumber,
-  seat: seatNumber,
-  couponCode: z.string().optional(),
+  items: z.array(cartItemSchema).min(1, 'Cart cannot be empty'),
+  couponCode: z.string().trim().toUpperCase().optional(),
 });
-export type ValidateCartDto = z.infer<typeof validateCartSchema>;
+export type ValidateCartInput = z.infer<typeof validateCartSchema>;
+export type CartItemInput = z.infer<typeof cartItemSchema>;

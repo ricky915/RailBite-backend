@@ -1,83 +1,52 @@
 import type { Request, Response } from 'express';
 
-import type {
-  ForgotPasswordDto,
-  LoginDto,
-  LogoutDto,
-  RefreshTokenDto,
-  RegisterDto,
-  ResendOtpDto,
-  ResetPasswordDto,
-  VerifyOtpDto,
-} from '@/modules/auth/auth.dto';
-import type { AuthService, RequestContext } from '@/modules/auth/auth.service';
-import { AuthenticationError } from '@/utils/errors';
-import { successResponse } from '@/utils/responseFormatter';
+import { asyncHandler } from '@/utils/asyncHandler';
+import { sendSuccess } from '@/utils/responseFormatter';
 
-function contextFromRequest(req: Request): RequestContext {
-  return {
-    ipAddress: req.ip ?? 'unknown',
-    userAgent: req.headers['user-agent'] ?? 'unknown',
-    requestId: req.requestId ?? 'unknown',
-  };
+import { authService } from './auth.service';
+
+function requestContext(req: Request): { ipAddress?: string; userAgent?: string } {
+  return { ipAddress: req.ip, userAgent: req.headers['user-agent'] };
 }
 
-/**
- * Auth HTTP handlers (TRD 10.2). Controllers only extract the
- * already-validated DTO, delegate to the service, and format the
- * response — no business logic here.
- */
-export class AuthController {
-  constructor(private readonly service: AuthService) {}
+export const authController = {
+  register: asyncHandler(async (req: Request, res: Response) => {
+    const result = await authService.register(req.body);
+    sendSuccess(res, result, { message: 'Registered — verification OTP sent', statusCode: 201 });
+  }),
 
-  register = async (req: Request, res: Response): Promise<void> => {
-    const dto = req.body as RegisterDto;
-    const result = await this.service.register(dto);
-    successResponse(res, result, 'Registration initiated. Please verify the OTP sent to your mobile.', 201);
-  };
+  sendOtp: asyncHandler(async (req: Request, res: Response) => {
+    const result = await authService.sendOtp(req.body);
+    sendSuccess(res, result, { message: 'OTP sent' });
+  }),
 
-  verifyOtp = async (req: Request, res: Response): Promise<void> => {
-    const dto = req.body as VerifyOtpDto;
-    const result = await this.service.verifyOtp(dto);
-    successResponse(res, result, 'OTP verified successfully.');
-  };
+  verifyOtp: asyncHandler(async (req: Request, res: Response) => {
+    const result = await authService.verifyOtp(req.body, requestContext(req));
+    sendSuccess(res, result, { message: 'OTP verified' });
+  }),
 
-  resendOtp = async (req: Request, res: Response): Promise<void> => {
-    const dto = req.body as ResendOtpDto;
-    const result = await this.service.resendOtp(dto);
-    successResponse(res, result, 'OTP resent successfully.');
-  };
+  login: asyncHandler(async (req: Request, res: Response) => {
+    const result = await authService.login(req.body, requestContext(req));
+    sendSuccess(res, result, { message: 'Login successful' });
+  }),
 
-  login = async (req: Request, res: Response): Promise<void> => {
-    const dto = req.body as LoginDto;
-    const result = await this.service.login(dto, contextFromRequest(req));
-    successResponse(res, result, 'Login successful.');
-  };
+  refresh: asyncHandler(async (req: Request, res: Response) => {
+    const tokens = await authService.refresh(req.body.refreshToken, requestContext(req));
+    sendSuccess(res, tokens, { message: 'Token refreshed' });
+  }),
 
-  refresh = async (req: Request, res: Response): Promise<void> => {
-    const dto = req.body as RefreshTokenDto;
-    const result = await this.service.refresh(dto, contextFromRequest(req));
-    successResponse(res, result, 'Token refreshed successfully.');
-  };
+  logout: asyncHandler(async (req: Request, res: Response) => {
+    await authService.logout(req.body.refreshToken);
+    sendSuccess(res, null, { message: 'Logged out' });
+  }),
 
-  logout = async (req: Request, res: Response): Promise<void> => {
-    if (!req.user) {
-      throw new AuthenticationError('Please log in to continue.');
-    }
-    const dto = req.body as LogoutDto;
-    await this.service.logout(dto, req.user.userId, contextFromRequest(req));
-    successResponse(res, null, 'Logged out successfully.');
-  };
+  forgotPassword: asyncHandler(async (req: Request, res: Response) => {
+    const result = await authService.forgotPassword(req.body);
+    sendSuccess(res, result, { message: 'If an account exists, an OTP has been sent' });
+  }),
 
-  forgotPassword = async (req: Request, res: Response): Promise<void> => {
-    const dto = req.body as ForgotPasswordDto;
-    const result = await this.service.forgotPassword(dto);
-    successResponse(res, result, result.message);
-  };
-
-  resetPassword = async (req: Request, res: Response): Promise<void> => {
-    const dto = req.body as ResetPasswordDto;
-    await this.service.resetPassword(dto);
-    successResponse(res, null, 'Password reset successfully. Please log in with your new password.');
-  };
-}
+  resetPassword: asyncHandler(async (req: Request, res: Response) => {
+    await authService.resetPassword(req.body);
+    sendSuccess(res, null, { message: 'Password reset successful' });
+  }),
+};

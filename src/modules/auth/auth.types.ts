@@ -1,28 +1,16 @@
 import type { UserRole } from '@/types/domain.types';
 
-export interface AuthenticatedUserView {
-  id: string;
-  name: string;
-  mobile: string;
-  email: string;
-  role: UserRole;
-  isEmailVerified: boolean;
-  isMobileVerified: boolean;
-}
-
-export interface TokenPair {
+export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
 }
 
-export interface LoginResult extends TokenPair {
-  user: AuthenticatedUserView;
+export interface AuthenticatedUserView {
+  id: string;
+  name: string;
+  email: string;
+  mobile: string;
+  role: UserRole;
 }
 
-export interface RegisterResult {
-  userId: string;
-  otpSentTo: {
-    mobile: string;
-    email: string;
-  };
-}
+export type OtpPurposeValue = 'REGISTER' | 'LOGIN' | 'FORGOT_PASSWORD' | 'CHANGE_MOBILE' | 'SENSITIVE_ACTION';

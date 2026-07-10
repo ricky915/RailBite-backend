@@ -1,65 +1,55 @@
-import type { IAuditLog } from '@/models/AuditLog.model';
-import type { IOrder } from '@/models/Order.model';
-import type { IRestaurant } from '@/models/Restaurant.model';
-import type { PaginatedResult } from '@/types/domain.types';
-import { NotImplementedError } from '@/utils/errors';
+import type { FilterQuery } from 'mongoose';
 
-/**
- * Data access for admin-only cross-module operations (TRD 4.2 "admin:
- * Admin-only cross-module operations"). This repository intentionally
- * reads/writes the Order/Restaurant/AuditLog models directly rather than
- * depending on the orders/restaurants modules' own repositories, keeping
- * those modules decoupled from admin-specific query shapes.
- * Scaffold: all queries are planned for a later phase.
- */
-export class AdminRepository {
-  findAllOrders(
-    filter: Record<string, unknown>,
-    skip: number,
-    limit: number,
-  ): Promise<PaginatedResult<IOrder>> {
-    throw new NotImplementedError(
-      `AdminRepository.findAllOrders(${JSON.stringify(filter)}, skip=${skip}, limit=${limit}) is not yet implemented.`,
-    );
-  }
+import { AuditLog, type AuditLogDocument } from '@/models/AuditLog.model';
+import { MenuItem } from '@/models/MenuItem.model';
+import { Order } from '@/models/Order.model';
+import { User } from '@/models/User.model';
+import { OrderDisplayStatus, ORDER_STATUS_DISPLAY_MAP, PaymentStatus } from '@/types/domain.types';
 
-  findOrderById(id: string): Promise<IOrder | null> {
-    throw new NotImplementedError(`AdminRepository.findOrderById(${id}) is not yet implemented.`);
-  }
+export const adminRepository = {
+  async dashboardSummary() {
+    const [revenueAgg, orderCount, pendingStatuses, userCount, menuItemCount, recentOrders] = await Promise.all([
+      Order.aggregate<{ total: number }>([
+        { $match: { isDeleted: false, paymentStatus: PaymentStatus.CAPTURED } },
+        { $group: { _id: null, total: { $sum: '$grandTotal' } } },
+      ]),
+      Order.countDocuments({ isDeleted: false }),
+      Order.find({ isDeleted: false }, { status: 1 }),
+      User.countDocuments({ isDeleted: false }),
+      MenuItem.countDocuments({ isDeleted: false }),
+      Order.find({ isDeleted: false }).sort({ createdAt: -1 }).limit(5),
+    ]);
 
-  updateOrderById(id: string, data: Partial<IOrder>): Promise<IOrder | null> {
-    throw new NotImplementedError(
-      `AdminRepository.updateOrderById(${id}, ${JSON.stringify(data)}) is not yet implemented.`,
-    );
-  }
+    const pendingOrders = pendingStatuses.filter((o) => {
+      const display = ORDER_STATUS_DISPLAY_MAP[o.status];
+      return display !== OrderDisplayStatus.DELIVERED && display !== OrderDisplayStatus.CANCELLED;
+    }).length;
 
-  findAllRestaurants(
-    filter: Record<string, unknown>,
-    skip: number,
-    limit: number,
-  ): Promise<PaginatedResult<IRestaurant>> {
-    throw new NotImplementedError(
-      `AdminRepository.findAllRestaurants(${JSON.stringify(filter)}, skip=${skip}, limit=${limit}) is not yet implemented.`,
-    );
-  }
+    return {
+      totalRevenuePaise: revenueAgg[0]?.total ?? 0,
+      totalOrders: orderCount,
+      pendingOrders,
+      totalUsers: userCount,
+      totalMenuItems: menuItemCount,
+      recentOrders,
+    };
+  },
 
-  findRestaurantById(id: string): Promise<IRestaurant | null> {
-    throw new NotImplementedError(`AdminRepository.findRestaurantById(${id}) is not yet implemented.`);
-  }
+  async listAuditLogs(filters: { entityType?: string; action?: string }, skip: number, limit: number) {
+    const query: FilterQuery<AuditLogDocument> = {};
+    if (filters.entityType) query.entityType = filters.entityType;
+    if (filters.action) query.action = filters.action;
+    const [items, total] = await Promise.all([
+      AuditLog.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      AuditLog.countDocuments(query),
+    ]);
+    return { items, total };
+  },
 
-  updateRestaurantById(id: string, data: Partial<IRestaurant>): Promise<IRestaurant | null> {
-    throw new NotImplementedError(
-      `AdminRepository.updateRestaurantById(${id}, ${JSON.stringify(data)}) is not yet implemented.`,
-    );
-  }
-
-  findAuditLogs(
-    filter: Record<string, unknown>,
-    skip: number,
-    limit: number,
-  ): Promise<PaginatedResult<IAuditLog>> {
-    throw new NotImplementedError(
-      `AdminRepository.findAuditLogs(${JSON.stringify(filter)}, skip=${skip}, limit=${limit}) is not yet implemented.`,
-    );
-  }
-}
+  async roleCounts() {
+    return User.aggregate<{ _id: string; count: number }>([
+      { $match: { isDeleted: false } },
+      { $group: { _id: '$role', count: { $sum: 1 } } },
+    ]);
+  },
+};

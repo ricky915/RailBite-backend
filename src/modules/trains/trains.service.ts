@@ -1,27 +1,62 @@
-import type { SearchTrainQueryDto } from '@/modules/trains/trains.dto';
-import type { TrainsRepository } from '@/modules/trains/trains.repository';
-import type { PnrLookupResult, TrainSearchResult } from '@/modules/trains/trains.types';
-import { NotImplementedError } from '@/utils/errors';
+import { DELIVERY_WINDOW_MINUTES } from '@/config/constants';
+import { AppError, NotFoundError } from '@/utils/errors';
+import { logger } from '@/utils/logger';
 
-/**
- * Train/PNR lookup business logic (PRD 11.3). Wraps the external
- * IRCTC/RailAPI provider behind a `TrainDataProvider`-style interface so
- * the underlying vendor can be swapped without touching order logic
- * (TRD 29/30.2). Scaffold: provider integration is planned for a later
- * phase.
- */
-export class TrainsService {
-  constructor(private readonly repository: TrainsRepository) {}
+import { railApiClient } from './railApi.client';
+import { trainsRepository } from './trains.repository';
 
-  searchTrain(dto: SearchTrainQueryDto): Promise<TrainSearchResult> {
-    throw new NotImplementedError(
-      `TrainsService.searchTrain(${dto.trainNumber}, ${dto.date}) is not yet implemented.`,
-    );
-  }
-
-  lookupPnr(pnr: string, userId: string): Promise<PnrLookupResult> {
-    throw new NotImplementedError(
-      `TrainsService.lookupPnr(${pnr}) for user ${userId} is not yet implemented.`,
-    );
-  }
+function vendorUnavailableError(): AppError {
+  return new AppError(
+    503,
+    'RAIL_VENDOR_UNAVAILABLE',
+    'Live train data is temporarily unavailable — please enter your PNR/coach/seat/station details manually',
+  );
 }
+
+export const trainsService = {
+  async searchTrains(query: string) {
+    try {
+      return await railApiClient.searchTrains(query);
+    } catch (error) {
+      logger.warn('Train search vendor call failed, no fallback data available', { query, error });
+      throw vendorUnavailableError();
+    }
+  },
+
+  async getPnrStatus(pnr: string) {
+    try {
+      return await railApiClient.getPnrStatus(pnr);
+    } catch (error) {
+      logger.warn('PNR lookup vendor call failed, checkout should fall back to manual entry', { pnr, error });
+      throw vendorUnavailableError();
+    }
+  },
+
+  async getTrainStops(trainNumber: string) {
+    const cached = await trainsRepository.findCachedSchedule(trainNumber);
+    if (cached) return cached;
+
+    try {
+      const schedule = await railApiClient.getTrainSchedule(trainNumber);
+      return await trainsRepository.upsertSchedule(schedule);
+    } catch (error) {
+      logger.warn('Train schedule vendor call failed, no cached fallback available', { trainNumber, error });
+      throw vendorUnavailableError();
+    }
+  },
+
+  /** Used by the Orders module at checkout to enforce the PRD's 45-minute delivery window (§13.8). */
+  async isWithinDeliveryWindow(trainNumber: string, stationCode: string, boardingDate: Date, now = new Date()): Promise<boolean> {
+    const schedule = await this.getTrainStops(trainNumber);
+    const stop = schedule.stops.find((s) => s.stationCode === stationCode);
+    if (!stop || !stop.arrivalTime) throw new NotFoundError(`Station ${stationCode} not found on this train's route`);
+
+    const [hours, minutes] = stop.arrivalTime.split(':').map(Number);
+    const arrivalDateTime = new Date(boardingDate);
+    arrivalDateTime.setDate(arrivalDateTime.getDate() + stop.dayOffset);
+    arrivalDateTime.setHours(hours, minutes, 0, 0);
+
+    const diffMinutes = Math.abs((arrivalDateTime.getTime() - now.getTime()) / 60_000);
+    return diffMinutes <= DELIVERY_WINDOW_MINUTES;
+  },
+};

@@ -1,33 +1,27 @@
-/**
- * Response envelope types (TRD 10.6). Every API response — success or
- * error — conforms to one of these shapes.
- */
-
 export interface PaginationMeta {
   page: number;
-  pageSize: number;
+  limit: number;
   total: number;
   totalPages: number;
 }
 
-export interface SuccessResponseBody<T> {
+export interface ApiSuccessResponse<T> {
   success: true;
-  statusCode: number;
-  message: string;
   data: T;
+  message?: string;
   meta?: PaginationMeta;
 }
 
-export interface FieldError {
-  field: string;
-  message: string;
-}
-
-export interface ErrorResponseBody {
+export interface ApiErrorResponse {
   success: false;
-  statusCode: number;
-  message: string;
-  errors?: FieldError[];
+  error: {
+    code: string;
+    message: string;
+    details?: unknown;
+  };
 }
 
-export type ApiResponseBody<T> = SuccessResponseBody<T> | ErrorResponseBody;
+export interface PaginationQuery {
+  page: number;
+  limit: number;
+}

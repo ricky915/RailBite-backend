@@ -1,26 +1,19 @@
 import type { NextFunction, Request, Response } from 'express';
 
 import type { UserRole } from '@/types/domain.types';
-import { AuthenticationError, AuthorizationError } from '@/utils/errors';
+import { ForbiddenError, UnauthorizedError } from '@/utils/errors';
 
-/**
- * Role-guard factory (TRD 14.1). Usage:
- *   router.patch('/admin/restaurants/:id/approve',
- *     authMiddleware, requireRole(['admin', 'super_admin']),
- *     validate(dto), controller.approve);
- *
- * Must run after `authMiddleware` so `req.user` is populated.
- */
-export function requireRole(allowedRoles: UserRole[]) {
+/** Backend-verified RBAC guard (CLAUDE.md §10) — never trust a client-supplied role, only the role loaded from the DB in requireAuth. */
+export function requireRole(...allowedRoles: UserRole[]) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.user) {
-      throw new AuthenticationError('Please log in to continue.');
+      next(new UnauthorizedError());
+      return;
     }
-
     if (!allowedRoles.includes(req.user.role)) {
-      throw new AuthorizationError('You do not have permission to perform this action.');
+      next(new ForbiddenError(`Requires one of roles: ${allowedRoles.join(', ')}`));
+      return;
     }
-
     next();
   };
 }

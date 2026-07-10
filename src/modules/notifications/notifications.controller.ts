@@ -1,39 +1,21 @@
 import type { Request, Response } from 'express';
 
-import type {
-  BroadcastNotificationDto,
-  ListNotificationsQueryDto,
-  NotificationIdParamsDto,
-} from '@/modules/notifications/notifications.dto';
-import type { NotificationsService } from '@/modules/notifications/notifications.service';
-import { AuthenticationError } from '@/utils/errors';
-import { successResponse } from '@/utils/responseFormatter';
+import { asyncHandler } from '@/utils/asyncHandler';
+import { UnauthorizedError } from '@/utils/errors';
+import { sendSuccess } from '@/utils/responseFormatter';
 
-function requireUserId(req: Request): string {
-  if (!req.user) {
-    throw new AuthenticationError('Please log in to continue.');
-  }
-  return req.user.userId;
-}
+import { notificationsService } from './notifications.service';
 
-export class NotificationsController {
-  constructor(private readonly service: NotificationsService) {}
+export const notificationsController = {
+  list: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) throw new UnauthorizedError();
+    const { items, meta } = await notificationsService.list(req.user.id, req.query as never);
+    sendSuccess(res, items, { meta });
+  }),
 
-  list = async (req: Request, res: Response): Promise<void> => {
-    const query = req.query as unknown as ListNotificationsQueryDto;
-    const result = await this.service.listOwnNotifications(query, requireUserId(req));
-    successResponse(res, result, 'Notifications retrieved successfully.');
-  };
-
-  markRead = async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params as unknown as NotificationIdParamsDto;
-    const result = await this.service.markAsRead(id, requireUserId(req));
-    successResponse(res, result, 'Notification marked as read.');
-  };
-
-  broadcast = async (req: Request, res: Response): Promise<void> => {
-    const dto = req.body as BroadcastNotificationDto;
-    const result = await this.service.broadcast(dto, requireUserId(req));
-    successResponse(res, result, 'Broadcast dispatched successfully.', 201);
-  };
-}
+  markRead: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) throw new UnauthorizedError();
+    const notification = await notificationsService.markRead(req.params.id, req.user.id);
+    sendSuccess(res, notification, { message: 'Notification marked as read' });
+  }),
+};

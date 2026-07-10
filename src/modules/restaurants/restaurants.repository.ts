@@ -1,54 +1,61 @@
 import type { FilterQuery } from 'mongoose';
 
-import type { IMenu } from '@/models/Menu.model';
-import { MenuModel } from '@/models/Menu.model';
-import type { IRestaurant } from '@/models/Restaurant.model';
-import { RestaurantModel } from '@/models/Restaurant.model';
-import type { PaginatedResult } from '@/types/domain.types';
-import { NotImplementedError } from '@/utils/errors';
+import { Category } from '@/models/Category.model';
+import { MenuItem } from '@/models/MenuItem.model';
+import { Restaurant, type RestaurantDocument } from '@/models/Restaurant.model';
+import { RestaurantStatus } from '@/types/domain.types';
 
-/**
- * Data access for the restaurants module (TRD 3.2.4, 5.3). Read paths
- * (list/detail, used by the passenger-facing browse flow) are implemented;
- * onboarding/update persistence remains scaffolded for a later phase.
- */
-export class RestaurantsRepository {
-  findById(id: string): Promise<IRestaurant | null> {
-    return RestaurantModel.findOne({ _id: id, isDeleted: false });
-  }
+import type { RestaurantListFilters } from './restaurants.types';
 
-  findMenusByRestaurantId(restaurantId: string): Promise<IMenu[]> {
-    return MenuModel.find({ restaurantId, isDeleted: false }).sort({ displayOrder: 1 });
-  }
+export const restaurantsRepository = {
+  async list(filters: RestaurantListFilters, skip: number, limit: number, publicOnly: boolean) {
+    const query: FilterQuery<RestaurantDocument> = { isDeleted: false };
+    if (publicOnly) {
+      query.status = RestaurantStatus.APPROVED;
+      query.isActive = true;
+    }
+    if (filters.station) query.stationCodes = filters.station.toUpperCase();
+    if (filters.cuisine) query.cuisineTypes = filters.cuisine;
+    if (filters.search) query.name = { $regex: filters.search, $options: 'i' };
 
-  async findMany(
-    filter: FilterQuery<IRestaurant>,
-    skip: number,
-    limit: number,
-  ): Promise<PaginatedResult<IRestaurant>> {
-    const [data, total] = await Promise.all([
-      RestaurantModel.find(filter).skip(skip).limit(limit).sort({ averageRating: -1 }),
-      RestaurantModel.countDocuments(filter),
+    const [items, total] = await Promise.all([
+      Restaurant.find(query).sort({ avgRating: -1, createdAt: -1 }).skip(skip).limit(limit),
+      Restaurant.countDocuments(query),
     ]);
+    return { items, total };
+  },
 
-    return {
-      data,
-      total,
-      page: Math.floor(skip / limit) + 1,
-      pageSize: limit,
-      totalPages: Math.max(1, Math.ceil(total / limit)),
-    };
-  }
+  async popular(limit: number) {
+    return Restaurant.find({ isDeleted: false, status: RestaurantStatus.APPROVED, isActive: true })
+      .sort({ avgRating: -1, ratingCount: -1 })
+      .limit(limit);
+  },
 
-  create(data: Partial<IRestaurant>): Promise<IRestaurant> {
-    throw new NotImplementedError(
-      `RestaurantsRepository.create(${JSON.stringify(data)}) is not yet implemented.`,
-    );
-  }
+  async findById(id: string) {
+    return Restaurant.findOne({ _id: id, isDeleted: false });
+  },
 
-  updateById(id: string, data: Partial<IRestaurant>): Promise<IRestaurant | null> {
-    throw new NotImplementedError(
-      `RestaurantsRepository.updateById(${id}, ${JSON.stringify(data)}) is not yet implemented.`,
-    );
-  }
-}
+  async findPublicById(id: string) {
+    return Restaurant.findOne({ _id: id, isDeleted: false, status: RestaurantStatus.APPROVED, isActive: true });
+  },
+
+  async create(ownerUserId: string, data: Record<string, unknown>) {
+    return Restaurant.create({ ...data, ownerUserId });
+  },
+
+  async update(id: string, data: Record<string, unknown>, updatedBy: string) {
+    return Restaurant.findOneAndUpdate({ _id: id, isDeleted: false }, { ...data, updatedBy }, { new: true });
+  },
+
+  async setStatus(id: string, status: RestaurantStatus, extra: Record<string, unknown>, updatedBy: string) {
+    return Restaurant.findOneAndUpdate({ _id: id, isDeleted: false }, { status, ...extra, updatedBy }, { new: true });
+  },
+
+  async menuForRestaurant(restaurantId: string) {
+    const [categories, items] = await Promise.all([
+      Category.find({ isDeleted: false, isActive: true }).sort({ displayOrder: 1 }),
+      MenuItem.find({ restaurantId, isDeleted: false }).sort({ isBestseller: -1, name: 1 }),
+    ]);
+    return { categories, items };
+  },
+};

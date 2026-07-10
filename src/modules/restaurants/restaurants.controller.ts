@@ -1,59 +1,96 @@
 import type { Request, Response } from 'express';
 
-import type {
-  CreateRestaurantDto,
-  ListRestaurantsQueryDto,
-  RestaurantIdParamsDto,
-  UpdateRestaurantDto,
-} from '@/modules/restaurants/restaurants.dto';
-import type { RestaurantsService } from '@/modules/restaurants/restaurants.service';
-import { AuthenticationError } from '@/utils/errors';
-import { successResponse } from '@/utils/responseFormatter';
+import { asyncHandler } from '@/utils/asyncHandler';
+import { recordAuditLog } from '@/utils/auditLog';
+import { UnauthorizedError } from '@/utils/errors';
+import { sendSuccess } from '@/utils/responseFormatter';
 
-function requireUserId(req: Request): string {
-  if (!req.user) {
-    throw new AuthenticationError('Please log in to continue.');
-  }
-  return req.user.userId;
+import { restaurantsService } from './restaurants.service';
+
+function requireUser(req: Request) {
+  if (!req.user) throw new UnauthorizedError();
+  return req.user;
 }
 
-export class RestaurantsController {
-  constructor(private readonly service: RestaurantsService) {}
+export const restaurantsController = {
+  list: asyncHandler(async (req: Request, res: Response) => {
+    const isAdminCaller = req.user?.role === 'ADMIN' || req.user?.role === 'SUPER_ADMIN';
+    const { items, meta } = await restaurantsService.list(req.query as never, isAdminCaller);
+    sendSuccess(res, items, { meta });
+  }),
 
-  list = async (req: Request, res: Response): Promise<void> => {
-    const query = req.query as unknown as ListRestaurantsQueryDto;
-    const result = await this.service.listRestaurants(query);
-    successResponse(res, result, 'Restaurants retrieved successfully.');
-  };
+  popular: asyncHandler(async (req: Request, res: Response) => {
+    const limit = Number(req.query.limit) || 10;
+    const items = await restaurantsService.popular(limit);
+    sendSuccess(res, items);
+  }),
 
-  getDetail = async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params as unknown as RestaurantIdParamsDto;
-    const result = await this.service.getRestaurantDetail(id);
-    successResponse(res, result, 'Restaurant detail retrieved successfully.');
-  };
+  getDetail: asyncHandler(async (req: Request, res: Response) => {
+    const restaurant = await restaurantsService.getPublicDetail(req.params.id);
+    sendSuccess(res, restaurant);
+  }),
 
-  getMenu = async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params as unknown as RestaurantIdParamsDto;
-    const result = await this.service.getRestaurantMenu(id);
-    successResponse(res, result, 'Restaurant menu retrieved successfully.');
-  };
+  getMenu: asyncHandler(async (req: Request, res: Response) => {
+    const menu = await restaurantsService.getMenu(req.params.id);
+    sendSuccess(res, menu);
+  }),
 
-  submitOnboarding = async (req: Request, res: Response): Promise<void> => {
-    const dto = req.body as CreateRestaurantDto;
-    const result = await this.service.submitOnboarding(dto, requireUserId(req));
-    successResponse(res, result, 'Restaurant onboarding submitted for review.', 201);
-  };
+  create: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    const restaurant = await restaurantsService.create(user.id, req.body);
+    sendSuccess(res, restaurant, { statusCode: 201, message: 'Restaurant submitted for approval' });
+  }),
 
-  update = async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params as unknown as RestaurantIdParamsDto;
-    const dto = req.body as UpdateRestaurantDto;
-    const result = await this.service.updateRestaurant(id, dto, requireUserId(req));
-    successResponse(res, result, 'Restaurant updated successfully.');
-  };
+  update: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    const restaurant = await restaurantsService.update(req.params.id, req.body, user);
+    sendSuccess(res, restaurant, { message: 'Restaurant updated' });
+  }),
 
-  disable = async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params as unknown as RestaurantIdParamsDto;
-    await this.service.disableRestaurant(id, requireUserId(req));
-    successResponse(res, null, 'Restaurant disabled successfully.');
-  };
-}
+  approve: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    const before = await restaurantsService.getPublicDetail(req.params.id).catch(() => null);
+    const restaurant = await restaurantsService.approve(req.params.id, user.id);
+    await recordAuditLog({
+      actorId: user.id,
+      actorRole: user.role,
+      action: 'RESTAURANT_APPROVED',
+      entityType: 'Restaurant',
+      entityId: req.params.id,
+      before,
+      after: restaurant,
+      ipAddress: req.ip,
+    });
+    sendSuccess(res, restaurant, { message: 'Restaurant approved' });
+  }),
+
+  reject: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    const restaurant = await restaurantsService.reject(req.params.id, req.body, user.id);
+    await recordAuditLog({
+      actorId: user.id,
+      actorRole: user.role,
+      action: 'RESTAURANT_REJECTED',
+      entityType: 'Restaurant',
+      entityId: req.params.id,
+      after: restaurant,
+      ipAddress: req.ip,
+    });
+    sendSuccess(res, restaurant, { message: 'Restaurant rejected' });
+  }),
+
+  suspend: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    const restaurant = await restaurantsService.suspend(req.params.id, req.body, user.id);
+    await recordAuditLog({
+      actorId: user.id,
+      actorRole: user.role,
+      action: 'RESTAURANT_SUSPENDED',
+      entityType: 'Restaurant',
+      entityId: req.params.id,
+      after: restaurant,
+      ipAddress: req.ip,
+    });
+    sendSuccess(res, restaurant, { message: 'Restaurant suspended' });
+  }),
+};

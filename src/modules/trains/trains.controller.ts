@@ -1,25 +1,23 @@
 import type { Request, Response } from 'express';
 
-import type { PnrParamsDto, SearchTrainQueryDto } from '@/modules/trains/trains.dto';
-import type { TrainsService } from '@/modules/trains/trains.service';
-import { AuthenticationError } from '@/utils/errors';
-import { successResponse } from '@/utils/responseFormatter';
+import { asyncHandler } from '@/utils/asyncHandler';
+import { sendSuccess } from '@/utils/responseFormatter';
 
-export class TrainsController {
-  constructor(private readonly service: TrainsService) {}
+import { trainsService } from './trains.service';
 
-  search = async (req: Request, res: Response): Promise<void> => {
-    const query = req.query as unknown as SearchTrainQueryDto;
-    const result = await this.service.searchTrain(query);
-    successResponse(res, result, 'Train schedule retrieved successfully.');
-  };
+export const trainsController = {
+  search: asyncHandler(async (req: Request, res: Response) => {
+    const results = await trainsService.searchTrains(String(req.query.query));
+    sendSuccess(res, results);
+  }),
 
-  lookupPnr = async (req: Request, res: Response): Promise<void> => {
-    if (!req.user) {
-      throw new AuthenticationError('Please log in to continue.');
-    }
-    const { pnr } = req.params as unknown as PnrParamsDto;
-    const result = await this.service.lookupPnr(pnr, req.user.userId);
-    successResponse(res, result, 'PNR details retrieved successfully.');
-  };
-}
+  getPnrStatus: asyncHandler(async (req: Request, res: Response) => {
+    const status = await trainsService.getPnrStatus(req.params.pnr);
+    sendSuccess(res, status);
+  }),
+
+  getStops: asyncHandler(async (req: Request, res: Response) => {
+    const schedule = await trainsService.getTrainStops(req.params.number);
+    sendSuccess(res, schedule);
+  }),
+};

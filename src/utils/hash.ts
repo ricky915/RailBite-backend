@@ -1,33 +1,27 @@
+import { createHash } from 'crypto';
+
 import bcrypt from 'bcrypt';
 
 import { config } from '@/config/index';
 
-/**
- * Hashes a plaintext password using bcrypt at the configured cost factor
- * (default 12, per TRD 13.1 / 19).
- */
-export async function hashPassword(plainText: string): Promise<string> {
-  return bcrypt.hash(plainText, config.bcrypt.saltRounds);
+export async function hashPassword(plain: string): Promise<string> {
+  return bcrypt.hash(plain, config.security.bcryptSaltRounds);
 }
 
-/**
- * Compares a plaintext password against a stored bcrypt hash.
- */
-export async function comparePassword(plainText: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(plainText, hash);
+export async function comparePassword(plain: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(plain, hash);
 }
 
-/**
- * Hashes an opaque token (refresh token, OTP, reset token) with bcrypt so
- * that only the hash is persisted (TRD 12.1 refreshTokens/otps collections).
- */
-export async function hashToken(token: string): Promise<string> {
-  return bcrypt.hash(token, config.bcrypt.saltRounds);
+export function generateNumericOtp(length: number): string {
+  const digits = '0123456789';
+  let otp = '';
+  for (let i = 0; i < length; i += 1) {
+    otp += digits[Math.floor(Math.random() * digits.length)];
+  }
+  return otp;
 }
 
-/**
- * Compares a plaintext token against a stored bcrypt hash.
- */
-export async function compareToken(token: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(token, hash);
+/** SHA-256 is intentionally used (not bcrypt) for OTPs and refresh-token lookups — both are already high-entropy or attempt-capped, and these are hashed/compared on every request, so speed matters more than bcrypt's deliberate slowness. */
+export function sha256(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
 }

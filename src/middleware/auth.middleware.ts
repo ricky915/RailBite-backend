@@ -1,35 +1,57 @@
 import type { NextFunction, Request, Response } from 'express';
-import { TokenExpiredError } from 'jsonwebtoken';
 
-import { AuthenticationError } from '@/utils/errors';
+import { User } from '@/models/User.model';
+import { UnauthorizedError } from '@/utils/errors';
 import { verifyAccessToken } from '@/utils/jwt';
 
-/**
- * Verifies the JWT access token from the `Authorization: Bearer <token>`
- * header and attaches the decoded payload to `req.user` (TRD 10.5, 13.3).
- * Applied to all protected routes.
- */
-export function authMiddleware(req: Request, _res: Response, next: NextFunction): void {
+function extractBearerToken(req: Request): string | undefined {
   const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) return undefined;
+  return header.slice('Bearer '.length).trim();
+}
 
-  if (!header || !header.startsWith('Bearer ')) {
-    throw new AuthenticationError('Please log in to continue.');
-  }
-
-  const token = header.slice('Bearer '.length).trim();
-
+/** Verifies the JWT and re-checks isBlocked/isDeleted on every request — a role claim in a stale token must never survive a block/delete (CLAUDE.md §10). */
+export async function requireAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
   try {
+    const token = extractBearerToken(req);
+    if (!token) throw new UnauthorizedError('Missing bearer token');
+
     const payload = verifyAccessToken(token);
+
+    const user = await User.findById(payload.sub).select('role isBlocked isDeleted restaurantId').lean();
+    if (!user || user.isDeleted) throw new UnauthorizedError('User no longer exists');
+    if (user.isBlocked) throw new UnauthorizedError('Account is blocked');
+
     req.user = {
-      userId: payload.userId,
-      role: payload.role,
-      restaurantId: payload.restaurantId,
+      id: payload.sub,
+      role: user.role,
+      restaurantId: user.restaurantId?.toString(),
     };
     next();
   } catch (error) {
-    if (error instanceof TokenExpiredError) {
-      throw new AuthenticationError('Your session has expired. Please log in again.');
+    if (error instanceof UnauthorizedError) {
+      next(error);
+      return;
     }
-    throw new AuthenticationError('Invalid authentication token.');
+    next(new UnauthorizedError('Invalid or expired token'));
   }
+}
+
+/** Attaches req.user when a valid token is present, but never rejects the request — for public/optionally-personalized endpoints. */
+export async function optionalAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
+  const token = extractBearerToken(req);
+  if (!token) {
+    next();
+    return;
+  }
+  try {
+    const payload = verifyAccessToken(token);
+    const user = await User.findById(payload.sub).select('role isBlocked isDeleted restaurantId').lean();
+    if (user && !user.isDeleted && !user.isBlocked) {
+      req.user = { id: payload.sub, role: user.role, restaurantId: user.restaurantId?.toString() };
+    }
+  } catch {
+    // Ignore invalid tokens on optional-auth routes.
+  }
+  next();
 }

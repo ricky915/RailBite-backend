@@ -1,15 +1,13 @@
 import type { Request, Response } from 'express';
 
-import type { FunnelQueryDto } from '@/modules/analytics/analytics.dto';
-import type { AnalyticsService } from '@/modules/analytics/analytics.service';
-import { successResponse } from '@/utils/responseFormatter';
+import { asyncHandler } from '@/utils/asyncHandler';
+import { sendSuccess } from '@/utils/responseFormatter';
 
-export class AnalyticsController {
-  constructor(private readonly service: AnalyticsService) {}
+import { analyticsService } from './analytics.service';
 
-  getFunnel = async (req: Request, res: Response): Promise<void> => {
-    const query = req.query as unknown as FunnelQueryDto;
-    const result = await this.service.getFunnel(query);
-    successResponse(res, result, 'Funnel analytics retrieved successfully.');
-  };
-}
+export const analyticsController = {
+  revenueTrend: asyncHandler(async (req: Request, res: Response) => sendSuccess(res, await analyticsService.revenueTrend(req.query as never))),
+  stationHeatmap: asyncHandler(async (req: Request, res: Response) => sendSuccess(res, await analyticsService.stationHeatmap(req.query as never))),
+  paymentBreakdown: asyncHandler(async (req: Request, res: Response) => sendSuccess(res, await analyticsService.paymentBreakdown(req.query as never))),
+  funnel: asyncHandler(async (req: Request, res: Response) => sendSuccess(res, await analyticsService.funnel(req.query as never))),
+};

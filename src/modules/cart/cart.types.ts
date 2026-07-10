@@ -1,18 +1,22 @@
-export interface CartValidationItemResult {
+export interface ValidatedCartItem {
   menuItemId: string;
-  isAvailable: boolean;
-  priceChanged: boolean;
-  currentPricePaise?: number;
+  name: string;
+  price: number;
+  quantity: number;
+  customizations: { groupName: string; optionLabel: string; priceDeltaPaise: number }[];
+  specialNote?: string;
+  itemTotal: number;
 }
 
-export interface CartValidationResult {
-  isValid: boolean;
-  items: CartValidationItemResult[];
-  subtotalPaise: number;
+export interface ValidatedCart {
+  restaurantId: string;
+  items: ValidatedCartItem[];
+  subtotal: number;
   deliveryFeePaise: number;
   platformFeePaise: number;
-  gstPaise: number;
-  grandTotalPaise: number;
-  minOrderValueMetPaise: boolean;
-  deliveryWindowOk: boolean;
+  gstAmountPaise: number;
+  couponId?: string;
+  couponCode?: string;
+  couponDiscountPaise: number;
+  grandTotal: number;
 }

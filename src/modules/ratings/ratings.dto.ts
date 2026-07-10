@@ -1,29 +1,35 @@
 import { z } from 'zod';
 
-import { mongoId, paginationQuery } from '@/validations/common.validations';
+const objectIdSchema = z.string().regex(/^[a-f0-9]{24}$/i, 'Invalid id');
+
+export const ratingIdParamSchema = z.object({ id: objectIdSchema });
 
 export const createRatingSchema = z.object({
-  orderId: mongoId,
-  stars: z.number().int().min(1).max(5),
-  reviewText: z.string().max(500).optional(),
-  photoUrls: z.array(z.string().url()).max(3).default([]),
+  orderId: objectIdSchema,
+  menuItemId: objectIdSchema.optional(),
+  rating: z.number().int().min(1).max(5),
+  reviewText: z.string().trim().max(1000).optional(),
+  photos: z.array(z.string().url()).max(5).optional(),
 });
-export type CreateRatingDto = z.infer<typeof createRatingSchema>;
+export type CreateRatingInput = z.infer<typeof createRatingSchema>;
 
 export const updateRatingSchema = z.object({
-  stars: z.number().int().min(1).max(5).optional(),
-  reviewText: z.string().max(500).optional(),
-  photoUrls: z.array(z.string().url()).max(3).optional(),
+  rating: z.number().int().min(1).max(5).optional(),
+  reviewText: z.string().trim().max(1000).optional(),
 });
-export type UpdateRatingDto = z.infer<typeof updateRatingSchema>;
+export type UpdateRatingInput = z.infer<typeof updateRatingSchema>;
 
-export const ratingIdParamsSchema = z.object({ id: mongoId });
-export type RatingIdParamsDto = z.infer<typeof ratingIdParamsSchema>;
-
-export const restaurantIdParamsSchema = z.object({ restaurantId: mongoId });
-export type RestaurantIdParamsDto = z.infer<typeof restaurantIdParamsSchema>;
-
-export const listRatingsQuerySchema = paginationQuery.extend({
-  minStars: z.coerce.number().int().min(1).max(5).optional(),
+export const listRatingsSchema = z.object({
+  restaurantId: objectIdSchema.optional(),
+  menuItemId: objectIdSchema.optional(),
+  featured: z.coerce.boolean().optional(),
+  page: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().optional(),
 });
-export type ListRatingsQueryDto = z.infer<typeof listRatingsQuerySchema>;
+export type ListRatingsInput = z.infer<typeof listRatingsSchema>;
+
+export const moderateRatingSchema = z.object({
+  isHidden: z.boolean().optional(),
+  isFeatured: z.boolean().optional(),
+});
+export type ModerateRatingInput = z.infer<typeof moderateRatingSchema>;

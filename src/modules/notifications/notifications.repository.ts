@@ -1,35 +1,20 @@
-import type { INotification } from '@/models/Notification.model';
-import type { PaginatedResult } from '@/types/domain.types';
-import { NotImplementedError } from '@/utils/errors';
+import type { FilterQuery } from 'mongoose';
 
-/**
- * Data access for the notifications module (TRD 3.2.4, 5.3,
- * `notifications` collection). Note: dispatch itself is owned by the
- * shared `notification.service.ts` (TRD 5.5); this repository only
- * backs the in-app listing/read-state API.
- */
-export class NotificationsRepository {
-  findMany(
-    filter: Record<string, unknown>,
-    skip: number,
-    limit: number,
-  ): Promise<PaginatedResult<INotification>> {
-    throw new NotImplementedError(
-      `NotificationsRepository.findMany(${JSON.stringify(filter)}, skip=${skip}, limit=${limit}) is not yet implemented.`,
-    );
-  }
+import { Notification, type NotificationDocument } from '@/models/Notification.model';
+import { NotificationChannel } from '@/types/domain.types';
 
-  findById(id: string): Promise<INotification | null> {
-    throw new NotImplementedError(`NotificationsRepository.findById(${id}) is not yet implemented.`);
-  }
+export const notificationsRepository = {
+  async listForUser(userId: string, unreadOnly: boolean | undefined, skip: number, limit: number) {
+    const query: FilterQuery<NotificationDocument> = { userId, channel: NotificationChannel.IN_APP, isDeleted: false };
+    if (unreadOnly) query.isRead = false;
+    const [items, total] = await Promise.all([
+      Notification.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Notification.countDocuments(query),
+    ]);
+    return { items, total };
+  },
 
-  markAsRead(id: string): Promise<INotification | null> {
-    throw new NotImplementedError(`NotificationsRepository.markAsRead(${id}) is not yet implemented.`);
-  }
-
-  findRecipientUserIdsForSegment(segment: string): Promise<string[]> {
-    throw new NotImplementedError(
-      `NotificationsRepository.findRecipientUserIdsForSegment(${segment}) is not yet implemented.`,
-    );
-  }
-}
+  async markRead(id: string, userId: string) {
+    return Notification.findOneAndUpdate({ _id: id, userId, isDeleted: false }, { isRead: true }, { new: true });
+  },
+};

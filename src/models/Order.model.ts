@@ -1,103 +1,126 @@
-import type { Document, Types } from 'mongoose';
-import { model, Schema } from 'mongoose';
+import type { Types } from 'mongoose';
+import { Schema, model } from 'mongoose';
 
-import type { IOrderItem } from '@/models/OrderItem.model';
-import { orderItemSchema } from '@/models/OrderItem.model';
-import { OrderStatus, PaymentMode, PaymentStatus } from '@/types/domain.types';
+import { OrderStatus, PaymentMethod, PaymentMode, PaymentStatus } from '@/types/domain.types';
 
-export interface IOrderStatusHistoryEntry {
-  status: string;
-  timestamp: Date;
-  updatedBy?: Types.ObjectId;
+export interface OrderItemCustomizationSelection {
+  groupName: string;
+  optionLabel: string;
+  priceDeltaPaise: number;
+}
+
+export interface OrderItemSnapshot {
+  menuItemId: Types.ObjectId;
+  name: string;
+  price: number;
+  quantity: number;
+  customizations: OrderItemCustomizationSelection[];
+  specialNote?: string;
+  itemTotal: number;
+}
+
+export interface OrderStatusHistoryEntry {
+  status: OrderStatus;
+  changedAt: Date;
+  changedBy?: Types.ObjectId;
   note?: string;
 }
 
-/**
- * `orders` collection (TRD 12.2.2). Order header with an embedded
- * snapshot of items at time of order.
- */
-export interface IOrder extends Document {
+export interface OrderDocument {
+  _id: Types.ObjectId;
   orderId: string;
   passengerId: Types.ObjectId;
   restaurantId: Types.ObjectId;
-  trainNumber: string;
+  trainNumber?: string;
   pnr?: string;
-  boardingStation: string;
+  coach?: string;
+  seat?: string;
+  boardingStation?: string;
   deliveryStation: string;
-  deliveryStationEta: Date;
-  coach: string;
-  seat: string;
-  items: IOrderItem[];
+  deliveryStationEta?: Date;
+  items: OrderItemSnapshot[];
   subtotal: number;
-  deliveryFee: number;
-  platformFee: number;
-  gstAmount: number;
-  couponDiscount: number;
-  grandTotal: number;
+  deliveryFeePaise: number;
+  platformFeePaise: number;
+  gstAmountPaise: number;
   couponCode?: string;
-  paymentMode: PaymentMode;
-  paymentStatus: PaymentStatus;
+  couponDiscountPaise: number;
+  grandTotal: number;
   status: OrderStatus;
-  statusHistory: IOrderStatusHistoryEntry[];
-  cancellationReason?: string;
+  statusHistory: OrderStatusHistoryEntry[];
+  paymentMode: PaymentMode;
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
   idempotencyKey: string;
+  cancellationReason?: string;
   isDeleted: boolean;
+  updatedBy?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const statusHistorySchema = new Schema<IOrderStatusHistoryEntry>(
+const orderItemCustomizationSchema = new Schema<OrderItemCustomizationSelection>(
+  { groupName: String, optionLabel: String, priceDeltaPaise: Number },
+  { _id: false },
+);
+
+const orderItemSchema = new Schema<OrderItemSnapshot>(
   {
-    status: { type: String, required: true },
-    timestamp: { type: Date, required: true, default: Date.now },
-    updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    menuItemId: { type: Schema.Types.ObjectId, ref: 'MenuItem', required: true },
+    name: { type: String, required: true },
+    price: { type: Number, required: true },
+    quantity: { type: Number, required: true, min: 1 },
+    customizations: { type: [orderItemCustomizationSchema], default: [] },
+    specialNote: { type: String, maxlength: 300 },
+    itemTotal: { type: Number, required: true },
+  },
+  { _id: false },
+);
+
+const statusHistorySchema = new Schema<OrderStatusHistoryEntry>(
+  {
+    status: { type: String, enum: Object.values(OrderStatus), required: true },
+    changedAt: { type: Date, required: true, default: Date.now },
+    changedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     note: { type: String },
   },
   { _id: false },
 );
 
-const orderSchema = new Schema<IOrder>(
+const orderSchema = new Schema<OrderDocument>(
   {
     orderId: { type: String, required: true, unique: true },
     passengerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     restaurantId: { type: Schema.Types.ObjectId, ref: 'Restaurant', required: true },
-    trainNumber: { type: String, required: true, match: /^\d{5}$/ },
-    pnr: { type: String, match: /^\d{10}$/ },
-    boardingStation: { type: String, required: true },
+    trainNumber: { type: String },
+    pnr: { type: String },
+    coach: { type: String },
+    seat: { type: String },
+    boardingStation: { type: String },
     deliveryStation: { type: String, required: true },
-    deliveryStationEta: { type: Date, required: true },
-    coach: { type: String, required: true },
-    seat: { type: String, required: true },
-    items: { type: [orderItemSchema], default: [] },
-    subtotal: { type: Number, required: true, min: 0 },
-    deliveryFee: { type: Number, required: true, min: 0 },
-    platformFee: { type: Number, required: true, min: 0 },
-    gstAmount: { type: Number, required: true, min: 0 },
-    couponDiscount: { type: Number, default: 0, min: 0 },
-    grandTotal: { type: Number, required: true, min: 0 },
+    deliveryStationEta: { type: Date },
+    items: { type: [orderItemSchema], required: true, validate: (v: unknown[]) => v.length > 0 },
+    subtotal: { type: Number, required: true },
+    deliveryFeePaise: { type: Number, required: true, default: 0 },
+    platformFeePaise: { type: Number, required: true, default: 0 },
+    gstAmountPaise: { type: Number, required: true, default: 0 },
     couponCode: { type: String },
-    paymentMode: { type: String, enum: Object.values(PaymentMode), required: true },
-    paymentStatus: {
-      type: String,
-      enum: Object.values(PaymentStatus),
-      default: PaymentStatus.PENDING,
-    },
-    status: {
-      type: String,
-      enum: Object.values(OrderStatus),
-      default: OrderStatus.PENDING_PAYMENT,
-    },
+    couponDiscountPaise: { type: Number, default: 0 },
+    grandTotal: { type: Number, required: true },
+    status: { type: String, enum: Object.values(OrderStatus), required: true, default: OrderStatus.PENDING_PAYMENT },
     statusHistory: { type: [statusHistorySchema], default: [] },
-    cancellationReason: { type: String },
+    paymentMode: { type: String, enum: Object.values(PaymentMode), required: true },
+    paymentMethod: { type: String, enum: Object.values(PaymentMethod), required: true },
+    paymentStatus: { type: String, enum: Object.values(PaymentStatus), required: true, default: PaymentStatus.PENDING },
     idempotencyKey: { type: String, required: true, unique: true },
+    cancellationReason: { type: String },
     isDeleted: { type: Boolean, default: false },
+    updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true },
 );
 
 orderSchema.index({ passengerId: 1, createdAt: -1 });
 orderSchema.index({ restaurantId: 1, status: 1 });
-orderSchema.index({ trainNumber: 1, deliveryStation: 1, status: 1 });
-orderSchema.index({ createdAt: -1 });
 
-export const OrderModel = model<IOrder>('Order', orderSchema);
+export const Order = model<OrderDocument>('Order', orderSchema);

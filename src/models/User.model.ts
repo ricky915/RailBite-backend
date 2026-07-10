@@ -1,37 +1,34 @@
-import type { Document, Types } from 'mongoose';
-import { model, Schema } from 'mongoose';
+import type { Types } from 'mongoose';
+import { Schema, model } from 'mongoose';
 
 import { UserRole } from '@/types/domain.types';
 
-export interface IUserPreferences {
+export interface NotificationSettings {
+  smsEnabled: boolean;
+  emailEnabled: boolean;
+  promotionalEnabled: boolean;
+}
+
+export interface UserPreferences {
   dietaryTags: string[];
-  cuisinePrefs: string[];
+  cuisinePreferences: string[];
 }
 
-export interface IUserNotificationSettings {
-  emailMarketing: boolean;
-  smsMarketing: boolean;
-  inApp: boolean;
-}
-
-/**
- * `users` collection (TRD 12.2.1). Covers passenger and admin-side
- * accounts; preferences and notification settings are embedded.
- */
-export interface IUser extends Document {
+export interface UserDocument {
+  _id: Types.ObjectId;
   name: string;
-  mobile: string;
   email: string;
+  mobile: string;
   passwordHash: string;
   role: UserRole;
+  restaurantId?: Types.ObjectId;
   isEmailVerified: boolean;
   isMobileVerified: boolean;
-  isActive: boolean;
+  isBlocked: boolean;
   isDeleted: boolean;
-  restaurantId?: Types.ObjectId;
-  preferences: IUserPreferences;
-  notificationSettings: IUserNotificationSettings;
   profilePhotoUrl?: string;
+  preferences: UserPreferences;
+  notificationSettings: NotificationSettings;
   lastLoginAt?: Date;
   failedLoginCount: number;
   lockedUntil?: Date;
@@ -39,33 +36,28 @@ export interface IUser extends Document {
   updatedAt: Date;
 }
 
-const userSchema = new Schema<IUser>(
+const userSchema = new Schema<UserDocument>(
   {
-    name: { type: String, required: true, minlength: 2, maxlength: 50, trim: true },
-    mobile: { type: String, required: true, unique: true, match: /^[6-9]\d{9}$/ },
+    name: { type: String, required: true, trim: true, minlength: 2, maxlength: 80 },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    passwordHash: { type: String, required: true },
-    role: {
-      type: String,
-      enum: Object.values(UserRole),
-      default: UserRole.PASSENGER,
-      required: true,
-    },
+    mobile: { type: String, required: true, unique: true, trim: true },
+    passwordHash: { type: String, required: true, select: false },
+    role: { type: String, enum: Object.values(UserRole), default: UserRole.PASSENGER, required: true },
+    restaurantId: { type: Schema.Types.ObjectId, ref: 'Restaurant' },
     isEmailVerified: { type: Boolean, default: false },
     isMobileVerified: { type: Boolean, default: false },
-    isActive: { type: Boolean, default: true },
+    isBlocked: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
-    restaurantId: { type: Schema.Types.ObjectId, ref: 'Restaurant' },
+    profilePhotoUrl: { type: String },
     preferences: {
       dietaryTags: { type: [String], default: [] },
-      cuisinePrefs: { type: [String], default: [] },
+      cuisinePreferences: { type: [String], default: [] },
     },
     notificationSettings: {
-      emailMarketing: { type: Boolean, default: false },
-      smsMarketing: { type: Boolean, default: false },
-      inApp: { type: Boolean, default: true },
+      smsEnabled: { type: Boolean, default: true },
+      emailEnabled: { type: Boolean, default: true },
+      promotionalEnabled: { type: Boolean, default: true },
     },
-    profilePhotoUrl: { type: String },
     lastLoginAt: { type: Date },
     failedLoginCount: { type: Number, default: 0 },
     lockedUntil: { type: Date },
@@ -73,6 +65,6 @@ const userSchema = new Schema<IUser>(
   { timestamps: true },
 );
 
-userSchema.index({ role: 1, isActive: 1 });
+userSchema.index({ role: 1 });
 
-export const UserModel = model<IUser>('User', userSchema);
+export const User = model<UserDocument>('User', userSchema);

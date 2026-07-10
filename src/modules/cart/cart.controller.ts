@@ -1,19 +1,13 @@
 import type { Request, Response } from 'express';
 
-import type { ValidateCartDto } from '@/modules/cart/cart.dto';
-import type { CartService } from '@/modules/cart/cart.service';
-import { AuthenticationError } from '@/utils/errors';
-import { successResponse } from '@/utils/responseFormatter';
+import { asyncHandler } from '@/utils/asyncHandler';
+import { sendSuccess } from '@/utils/responseFormatter';
 
-export class CartController {
-  constructor(private readonly service: CartService) {}
+import { cartService } from './cart.service';
 
-  validate = async (req: Request, res: Response): Promise<void> => {
-    if (!req.user) {
-      throw new AuthenticationError('Please log in to continue.');
-    }
-    const dto = req.body as ValidateCartDto;
-    const result = await this.service.validateCart(dto, req.user.userId);
-    successResponse(res, result, 'Cart validated successfully.');
-  };
-}
+export const cartController = {
+  validate: asyncHandler(async (req: Request, res: Response) => {
+    const result = await cartService.validateCart(req.body, req.user?.id);
+    sendSuccess(res, result);
+  }),
+};

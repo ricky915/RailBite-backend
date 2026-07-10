@@ -1,77 +1,104 @@
-import { GST_RATE_PERCENT, PLATFORM_FEE_PAISE } from '@/config/constants';
-import type { IMenu } from '@/models/Menu.model';
-import type { CartRepository } from '@/modules/cart/cart.repository';
-import type { ValidateCartDto } from '@/modules/cart/cart.dto';
-import type { CartValidationItemResult, CartValidationResult } from '@/modules/cart/cart.types';
-import { RestaurantStatus } from '@/types/domain.types';
-import { NotFoundError } from '@/utils/errors';
+import { PRICING } from '@/config/constants';
+import { MenuItem, type MenuItemDocument } from '@/models/MenuItem.model';
+import { Restaurant } from '@/models/Restaurant.model';
+import { couponsService } from '@/modules/coupons/coupons.service';
+import { BadRequestError, NotFoundError } from '@/utils/errors';
 
-function flattenItems(menus: IMenu[]): Map<string, IMenu['items'][number]> {
-  const map = new Map<string, IMenu['items'][number]>();
-  for (const menu of menus) {
-    for (const item of menu.items) {
-      map.set(item._id.toString(), item);
+import type { CartItemInput, ValidateCartInput } from './cart.dto';
+import type { ValidatedCart, ValidatedCartItem } from './cart.types';
+
+function resolveCustomizationPrice(item: MenuItemDocument, input: CartItemInput): { priceDeltaTotal: number; resolved: ValidatedCartItem['customizations'] } {
+  const resolved: ValidatedCartItem['customizations'] = [];
+  let priceDeltaTotal = 0;
+
+  for (const selection of input.customizations) {
+    const group = item.customizations.find((g) => g.name === selection.groupName);
+    if (!group) throw new BadRequestError(`"${item.name}" has no customization group "${selection.groupName}"`);
+    const option = group.options.find((o) => o.label === selection.optionLabel);
+    if (!option) throw new BadRequestError(`"${item.name}" / "${selection.groupName}" has no option "${selection.optionLabel}"`);
+    resolved.push({ groupName: selection.groupName, optionLabel: option.label, priceDeltaPaise: option.priceDeltaPaise });
+    priceDeltaTotal += option.priceDeltaPaise;
+  }
+
+  for (const group of item.customizations.filter((g) => g.isRequired)) {
+    if (!input.customizations.some((s) => s.groupName === group.name)) {
+      throw new BadRequestError(`"${item.name}" requires a selection for "${group.name}"`);
     }
   }
-  return map;
+
+  return { priceDeltaTotal, resolved };
 }
 
-/**
- * Server-side cart validation before checkout (PRD 11.6, 11.7). Confirms
- * item availability and current pricing, and recomputes the authoritative
- * totals. Delivery-window (train ETA) checking depends on the trains
- * module, which remains scaffolded, so `deliveryWindowOk` is always
- * reported true for now.
- */
-export class CartService {
-  constructor(private readonly repository: CartRepository) {}
+export const cartService = {
+  /** Recomputes cart pricing entirely server-side — never trusts client-submitted prices/totals. Reused by Orders at checkout. */
+  async validateCart(input: ValidateCartInput, userId?: string): Promise<ValidatedCart> {
+    const menuItemIds = input.items.map((i) => i.menuItemId);
+    const menuItems = await MenuItem.find({ _id: { $in: menuItemIds }, isDeleted: false });
+    const menuItemMap = new Map(menuItems.map((m) => [m._id.toString(), m]));
 
-  async validateCart(dto: ValidateCartDto, _userId: string): Promise<CartValidationResult> {
-    const restaurant = await this.repository.findRestaurantById(dto.restaurantId);
-    if (!restaurant) {
-      throw new NotFoundError('Restaurant not found.');
+    if (menuItemMap.size !== new Set(menuItemIds).size) {
+      throw new NotFoundError('One or more menu items in your cart could not be found');
     }
 
-    const menus = await this.repository.findMenusByRestaurantId(dto.restaurantId);
-    const itemsById = flattenItems(menus);
+    const restaurantIds = new Set(menuItems.map((m) => m.restaurantId.toString()));
+    if (restaurantIds.size > 1) {
+      throw new BadRequestError('Your cart contains items from more than one restaurant — start a new cart to continue');
+    }
+    const restaurantId = [...restaurantIds][0];
 
-    let subtotalPaise = 0;
-    const items: CartValidationItemResult[] = dto.items.map((cartItem) => {
-      const menuItem = itemsById.get(cartItem.menuItemId);
-      const isAvailable = Boolean(menuItem?.isAvailable);
+    const restaurant = await Restaurant.findOne({ _id: restaurantId, isDeleted: false, isActive: true });
+    if (!restaurant) throw new NotFoundError('Restaurant is not currently available');
 
-      if (menuItem && isAvailable) {
-        subtotalPaise += menuItem.pricePaise * cartItem.quantity;
-      }
+    const items: ValidatedCartItem[] = input.items.map((inputItem) => {
+      const menuItem = menuItemMap.get(inputItem.menuItemId);
+      if (!menuItem) throw new NotFoundError('Menu item not found');
+      if (!menuItem.isAvailable) throw new BadRequestError(`"${menuItem.name}" is currently out of stock`);
+
+      const { priceDeltaTotal, resolved } = resolveCustomizationPrice(menuItem, inputItem);
+      const unitPrice = menuItem.price + priceDeltaTotal;
 
       return {
-        menuItemId: cartItem.menuItemId,
-        isAvailable,
-        priceChanged: false,
-        currentPricePaise: menuItem?.pricePaise,
+        menuItemId: menuItem._id.toString(),
+        name: menuItem.name,
+        price: unitPrice,
+        quantity: inputItem.quantity,
+        customizations: resolved,
+        specialNote: inputItem.specialNote,
+        itemTotal: unitPrice * inputItem.quantity,
       };
     });
 
-    const isRestaurantOpen = restaurant.isActive && restaurant.status === RestaurantStatus.APPROVED;
-    const allItemsAvailable = items.every((item) => item.isAvailable);
-    const minOrderValueMetPaise = subtotalPaise >= restaurant.minOrderValuePaise;
-    const deliveryWindowOk = true;
+    const subtotal = items.reduce((sum, i) => sum + i.itemTotal, 0);
 
-    const deliveryFeePaise = restaurant.deliveryFeePaise;
-    const platformFeePaise = PLATFORM_FEE_PAISE;
-    const gstPaise = Math.round((subtotalPaise * GST_RATE_PERCENT) / 100);
-    const grandTotalPaise = subtotalPaise + deliveryFeePaise + platformFeePaise + gstPaise;
+    if (subtotal < restaurant.minOrderValuePaise) {
+      throw new BadRequestError(`This restaurant requires a minimum order of ₹${restaurant.minOrderValuePaise / 100}`);
+    }
+
+    const deliveryFeePaise = PRICING.DELIVERY_FEE_PAISE;
+    const platformFeePaise = PRICING.PLATFORM_FEE_PAISE;
+    const gstAmountPaise = Math.round(subtotal * (PRICING.GST_PERCENT / 100));
+
+    let couponDiscountPaise = 0;
+    let couponId: string | undefined;
+    if (input.couponCode) {
+      const result = await couponsService.validate(input.couponCode, subtotal, restaurantId, userId);
+      couponDiscountPaise = result.discountPaise;
+      couponId = result.coupon._id.toString();
+    }
+
+    const grandTotal = subtotal + deliveryFeePaise + platformFeePaise + gstAmountPaise - couponDiscountPaise;
 
     return {
-      isValid: isRestaurantOpen && allItemsAvailable && minOrderValueMetPaise && deliveryWindowOk,
+      restaurantId,
       items,
-      subtotalPaise,
+      subtotal,
       deliveryFeePaise,
       platformFeePaise,
-      gstPaise,
-      grandTotalPaise,
-      minOrderValueMetPaise,
-      deliveryWindowOk,
+      gstAmountPaise,
+      couponId,
+      couponCode: input.couponCode,
+      couponDiscountPaise,
+      grandTotal,
     };
-  }
-}
+  },
+};

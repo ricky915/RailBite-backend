@@ -1,39 +1,20 @@
-import type {
-  BroadcastNotificationDto,
-  ListNotificationsQueryDto,
-} from '@/modules/notifications/notifications.dto';
-import type { NotificationsRepository } from '@/modules/notifications/notifications.repository';
-import type { BroadcastResult, NotificationView } from '@/modules/notifications/notifications.types';
-import type { PaginatedResult } from '@/types/domain.types';
-import { NotImplementedError } from '@/utils/errors';
+import { NotFoundError } from '@/utils/errors';
+import { buildPaginationMeta } from '@/utils/responseFormatter';
 
-/**
- * In-app notification listing and admin broadcast business logic
- * (PRD 11.11). Scaffold: segmentation and the actual broadcast fan-out
- * (delegating to the shared `notification.service.ts`) are planned for a
- * later phase.
- */
-export class NotificationsService {
-  constructor(private readonly repository: NotificationsRepository) {}
+import type { ListNotificationsInput } from './notifications.dto';
+import { notificationsRepository } from './notifications.repository';
 
-  listOwnNotifications(
-    query: ListNotificationsQueryDto,
-    userId: string,
-  ): Promise<PaginatedResult<NotificationView>> {
-    throw new NotImplementedError(
-      `NotificationsService.listOwnNotifications(user=${userId}, ${JSON.stringify(query)}) is not yet implemented.`,
-    );
-  }
+export const notificationsService = {
+  async list(userId: string, input: ListNotificationsInput) {
+    const page = input.page ?? 1;
+    const limit = Math.min(100, input.limit ?? 20);
+    const { items, total } = await notificationsRepository.listForUser(userId, input.unreadOnly, (page - 1) * limit, limit);
+    return { items, meta: buildPaginationMeta(page, limit, total) };
+  },
 
-  markAsRead(id: string, userId: string): Promise<NotificationView> {
-    throw new NotImplementedError(
-      `NotificationsService.markAsRead(${id}, user=${userId}) is not yet implemented.`,
-    );
-  }
-
-  broadcast(dto: BroadcastNotificationDto, adminUserId: string): Promise<BroadcastResult> {
-    throw new NotImplementedError(
-      `NotificationsService.broadcast(segment=${dto.segment}, admin=${adminUserId}) is not yet implemented.`,
-    );
-  }
-}
+  async markRead(id: string, userId: string) {
+    const notification = await notificationsRepository.markRead(id, userId);
+    if (!notification) throw new NotFoundError('Notification not found');
+    return notification;
+  },
+};

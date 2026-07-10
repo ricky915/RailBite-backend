@@ -1,19 +1,15 @@
 import type { Request, Response } from 'express';
 
-import type { OrderIdParamsDto } from '@/modules/invoices/invoices.dto';
-import type { InvoicesService } from '@/modules/invoices/invoices.service';
-import { AuthenticationError } from '@/utils/errors';
-import { successResponse } from '@/utils/responseFormatter';
+import { asyncHandler } from '@/utils/asyncHandler';
+import { UnauthorizedError } from '@/utils/errors';
+import { sendSuccess } from '@/utils/responseFormatter';
 
-export class InvoicesController {
-  constructor(private readonly service: InvoicesService) {}
+import { invoicesService } from './invoices.service';
 
-  getForOrder = async (req: Request, res: Response): Promise<void> => {
-    if (!req.user) {
-      throw new AuthenticationError('Please log in to continue.');
-    }
-    const { orderId } = req.params as unknown as OrderIdParamsDto;
-    const result = await this.service.getInvoiceForOrder(orderId, req.user.userId);
-    successResponse(res, result, 'Invoice retrieved successfully.');
-  };
-}
+export const invoicesController = {
+  getOrGenerate: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) throw new UnauthorizedError();
+    const invoice = await invoicesService.getOrGenerate(req.params.orderId, req.user.id);
+    sendSuccess(res, invoice);
+  }),
+};

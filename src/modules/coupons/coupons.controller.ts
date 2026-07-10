@@ -1,56 +1,78 @@
 import type { Request, Response } from 'express';
 
-import type {
-  CouponIdParamsDto,
-  CreateCouponDto,
-  ListCouponsQueryDto,
-  PauseCouponDto,
-  UpdateCouponDto,
-  ValidateCouponDto,
-} from '@/modules/coupons/coupons.dto';
-import type { CouponsService } from '@/modules/coupons/coupons.service';
-import { AuthenticationError } from '@/utils/errors';
-import { successResponse } from '@/utils/responseFormatter';
+import { asyncHandler } from '@/utils/asyncHandler';
+import { recordAuditLog } from '@/utils/auditLog';
+import { UnauthorizedError } from '@/utils/errors';
+import { sendSuccess } from '@/utils/responseFormatter';
 
-function requireUserId(req: Request): string {
-  if (!req.user) {
-    throw new AuthenticationError('Please log in to continue.');
-  }
-  return req.user.userId;
+import { couponsService } from './coupons.service';
+
+function requireUser(req: Request) {
+  if (!req.user) throw new UnauthorizedError();
+  return req.user;
 }
 
-export class CouponsController {
-  constructor(private readonly service: CouponsService) {}
+export const couponsController = {
+  listActive: asyncHandler(async (_req: Request, res: Response) => {
+    const coupons = await couponsService.listActive();
+    sendSuccess(res, coupons);
+  }),
 
-  validate = async (req: Request, res: Response): Promise<void> => {
-    const dto = req.body as ValidateCouponDto;
-    const result = await this.service.validateCoupon(dto, requireUserId(req));
-    successResponse(res, result, 'Coupon validated successfully.');
-  };
+  validate: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    const { code, subtotalPaise, restaurantId } = req.body;
+    const result = await couponsService.validate(code, subtotalPaise, restaurantId, user.id);
+    sendSuccess(res, { discountPaise: result.discountPaise, code: result.coupon.code });
+  }),
 
-  list = async (req: Request, res: Response): Promise<void> => {
-    const query = req.query as unknown as ListCouponsQueryDto;
-    const result = await this.service.listCoupons(query);
-    successResponse(res, result, 'Coupons retrieved successfully.');
-  };
+  listAll: asyncHandler(async (req: Request, res: Response) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const { items, meta } = await couponsService.listAll(page, limit);
+    sendSuccess(res, items, { meta });
+  }),
 
-  create = async (req: Request, res: Response): Promise<void> => {
-    const dto = req.body as CreateCouponDto;
-    const result = await this.service.createCoupon(dto, requireUserId(req));
-    successResponse(res, result, 'Coupon created successfully.', 201);
-  };
+  create: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    const coupon = await couponsService.create(req.body);
+    await recordAuditLog({
+      actorId: user.id,
+      actorRole: user.role,
+      action: 'COUPON_CREATED',
+      entityType: 'Coupon',
+      entityId: coupon._id,
+      after: coupon,
+      ipAddress: req.ip,
+    });
+    sendSuccess(res, coupon, { statusCode: 201, message: 'Coupon created' });
+  }),
 
-  update = async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params as unknown as CouponIdParamsDto;
-    const dto = req.body as UpdateCouponDto;
-    const result = await this.service.updateCoupon(id, dto, requireUserId(req));
-    successResponse(res, result, 'Coupon updated successfully.');
-  };
+  update: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    const coupon = await couponsService.update(req.params.id, req.body, user.id);
+    await recordAuditLog({
+      actorId: user.id,
+      actorRole: user.role,
+      action: 'COUPON_UPDATED',
+      entityType: 'Coupon',
+      entityId: req.params.id,
+      after: coupon,
+      ipAddress: req.ip,
+    });
+    sendSuccess(res, coupon, { message: 'Coupon updated' });
+  }),
 
-  pause = async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params as unknown as CouponIdParamsDto;
-    const dto = req.body as PauseCouponDto;
-    const result = await this.service.pauseCoupon(id, dto, requireUserId(req));
-    successResponse(res, result, 'Coupon status updated successfully.');
-  };
-}
+  delete: asyncHandler(async (req: Request, res: Response) => {
+    const user = requireUser(req);
+    await couponsService.delete(req.params.id, user.id);
+    await recordAuditLog({
+      actorId: user.id,
+      actorRole: user.role,
+      action: 'COUPON_DELETED',
+      entityType: 'Coupon',
+      entityId: req.params.id,
+      ipAddress: req.ip,
+    });
+    sendSuccess(res, null, { message: 'Coupon deleted' });
+  }),
+};

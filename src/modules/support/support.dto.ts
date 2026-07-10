@@ -1,26 +1,39 @@
 import { z } from 'zod';
 
-import { SupportTicketCategory, SupportTicketStatus } from '@/types/domain.types';
-import { mongoId, paginationQuery } from '@/validations/common.validations';
+import { SupportTicketPriority, SupportTicketStatus } from '@/types/domain.types';
+
+export const ticketIdParamSchema = z.object({
+  id: z.string().regex(/^[a-f0-9]{24}$/i, 'Invalid id'),
+});
 
 export const createTicketSchema = z.object({
-  orderId: mongoId.optional(),
-  category: z.nativeEnum(SupportTicketCategory),
-  description: z.string().min(10).max(1000),
-  attachmentUrls: z.array(z.string().url()).max(3).default([]),
+  name: z.string().trim().min(2).max(80),
+  email: z.string().trim().toLowerCase().email().max(200),
+  phone: z.string().trim().optional(),
+  subject: z.string().trim().min(3).max(200),
+  message: z.string().trim().min(5).max(1000),
+  category: z.string().trim().max(50).optional(),
+  orderId: z
+    .string()
+    .regex(/^[a-f0-9]{24}$/i)
+    .optional(),
 });
-export type CreateTicketDto = z.infer<typeof createTicketSchema>;
+export type CreateTicketInput = z.infer<typeof createTicketSchema>;
 
-export const ticketIdParamsSchema = z.object({ id: mongoId });
-export type TicketIdParamsDto = z.infer<typeof ticketIdParamsSchema>;
-
-export const listTicketsQuerySchema = paginationQuery.extend({
+export const listTicketsSchema = z.object({
+  page: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().optional(),
   status: z.nativeEnum(SupportTicketStatus).optional(),
 });
-export type ListTicketsQueryDto = z.infer<typeof listTicketsQuerySchema>;
+export type ListTicketsInput = z.infer<typeof listTicketsSchema>;
 
 export const updateTicketSchema = z.object({
   status: z.nativeEnum(SupportTicketStatus).optional(),
-  message: z.string().min(1).max(1000).optional(),
+  priority: z.nativeEnum(SupportTicketPriority).optional(),
+  assignedTo: z
+    .string()
+    .regex(/^[a-f0-9]{24}$/i)
+    .optional(),
+  resolutionNote: z.string().trim().max(1000).optional(),
 });
-export type UpdateTicketDto = z.infer<typeof updateTicketSchema>;
+export type UpdateTicketInput = z.infer<typeof updateTicketSchema>;

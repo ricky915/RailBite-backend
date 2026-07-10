@@ -1,52 +1,33 @@
-import type { Document } from 'mongoose';
-import { model, Schema } from 'mongoose';
+import type { Types } from 'mongoose';
+import { Schema, model } from 'mongoose';
 
-import { AuditAction } from '@/types/domain.types';
-
-export interface IAuditActor {
-  userId: string;
-  name: string;
-  role: string;
-}
-
-/**
- * `auditLogs` collection (TRD 12.1, 21.3). Immutable record of all admin
- * actions; denormalized (no references) for long-term integrity. No
- * `updatedAt` — audit logs are write-once.
- */
-export interface IAuditLog extends Document {
-  actor: IAuditActor;
-  action: AuditAction;
-  module: string;
-  resourceId?: string;
+export interface AuditLogDocument {
+  actorId: Types.ObjectId;
+  actorRole: string;
+  action: string;
+  entityType: string;
+  entityId: Types.ObjectId;
   before?: unknown;
   after?: unknown;
-  ipAddress: string;
-  userAgent: string;
-  requestId: string;
+  ipAddress?: string;
   createdAt: Date;
 }
 
-const auditLogSchema = new Schema<IAuditLog>(
+/** Immutable, 5-year retention per PRD §11.20 — no updatedAt/isDeleted; never mutated after creation. */
+const auditLogSchema = new Schema<AuditLogDocument>(
   {
-    actor: {
-      userId: { type: String, required: true },
-      name: { type: String, required: true },
-      role: { type: String, required: true },
-    },
-    action: { type: String, enum: Object.values(AuditAction), required: true },
-    module: { type: String, required: true },
-    resourceId: { type: String },
+    actorId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    actorRole: { type: String, required: true },
+    action: { type: String, required: true, index: true },
+    entityType: { type: String, required: true, index: true },
+    entityId: { type: Schema.Types.ObjectId, required: true, index: true },
     before: { type: Schema.Types.Mixed },
     after: { type: Schema.Types.Mixed },
-    ipAddress: { type: String, required: true },
-    userAgent: { type: String, required: true },
-    requestId: { type: String, required: true },
+    ipAddress: { type: String },
   },
-  { timestamps: { createdAt: true, updatedAt: false } },
+  { timestamps: { createdAt: true, updatedAt: false }, collection: 'auditLogs' },
 );
 
-auditLogSchema.index({ 'actor.userId': 1, createdAt: -1 });
-auditLogSchema.index({ module: 1, action: 1, createdAt: -1 });
+auditLogSchema.index({ createdAt: -1 });
 
-export const AuditLogModel = model<IAuditLog>('AuditLog', auditLogSchema);
+export const AuditLog = model<AuditLogDocument>('AuditLog', auditLogSchema);

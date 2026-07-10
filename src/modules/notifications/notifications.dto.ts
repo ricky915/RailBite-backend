@@ -1,20 +1,12 @@
 import { z } from 'zod';
 
-import { NotificationChannel } from '@/types/domain.types';
-import { mongoId, paginationQuery } from '@/validations/common.validations';
-
-export const listNotificationsQuerySchema = paginationQuery.extend({
-  isRead: z.coerce.boolean().optional(),
+export const notificationIdParamSchema = z.object({
+  id: z.string().regex(/^[a-f0-9]{24}$/i, 'Invalid id'),
 });
-export type ListNotificationsQueryDto = z.infer<typeof listNotificationsQuerySchema>;
 
-export const notificationIdParamsSchema = z.object({ id: mongoId });
-export type NotificationIdParamsDto = z.infer<typeof notificationIdParamsSchema>;
-
-export const broadcastNotificationSchema = z.object({
-  channel: z.nativeEnum(NotificationChannel),
-  subject: z.string().max(100).optional(),
-  content: z.string().min(1).max(2000),
-  segment: z.enum(['all', 'active_last_30_days', 'new_users']).default('all'),
+export const listNotificationsSchema = z.object({
+  page: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().optional(),
+  unreadOnly: z.coerce.boolean().optional(),
 });
-export type BroadcastNotificationDto = z.infer<typeof broadcastNotificationSchema>;
+export type ListNotificationsInput = z.infer<typeof listNotificationsSchema>;

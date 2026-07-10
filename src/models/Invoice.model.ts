@@ -1,46 +1,42 @@
-import type { Document, Types } from 'mongoose';
-import { model, Schema } from 'mongoose';
+import type { Types } from 'mongoose';
+import { Schema, model } from 'mongoose';
 
-/**
- * `invoices` collection (TRD 12.1). Immutable after creation; references
- * the order. Invoice numbering is sequential per financial year
- * (e.g., RB/FY26-27/00001) per PRD 11.13.
- */
-export interface IInvoice extends Document {
-  invoiceNumber: string;
+export interface InvoiceDocument {
+  _id: Types.ObjectId;
   orderId: Types.ObjectId;
+  invoiceNumber: string;
   passengerId: Types.ObjectId;
   restaurantId: Types.ObjectId;
-  financialYear: string;
-  cgstPaise: number;
-  sgstPaise: number;
-  igstPaise: number;
-  totalTaxPaise: number;
+  subtotalPaise: number;
+  gstAmountPaise: number;
+  deliveryFeePaise: number;
+  platformFeePaise: number;
+  discountPaise: number;
   grandTotalPaise: number;
-  pdfUrl: string;
-  isCreditNote: boolean;
-  originalInvoiceId?: Types.ObjectId;
+  pdfUrl?: string;
+  generatedAt: Date;
+  isDeleted: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const invoiceSchema = new Schema<IInvoice>(
+const invoiceSchema = new Schema<InvoiceDocument>(
   {
-    invoiceNumber: { type: String, required: true, unique: true },
     orderId: { type: Schema.Types.ObjectId, ref: 'Order', required: true, unique: true },
-    passengerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    invoiceNumber: { type: String, required: true, unique: true },
+    passengerId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     restaurantId: { type: Schema.Types.ObjectId, ref: 'Restaurant', required: true },
-    financialYear: { type: String, required: true },
-    cgstPaise: { type: Number, default: 0, min: 0 },
-    sgstPaise: { type: Number, default: 0, min: 0 },
-    igstPaise: { type: Number, default: 0, min: 0 },
-    totalTaxPaise: { type: Number, default: 0, min: 0 },
-    grandTotalPaise: { type: Number, required: true, min: 0 },
-    pdfUrl: { type: String, required: true },
-    isCreditNote: { type: Boolean, default: false },
-    originalInvoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice' },
+    subtotalPaise: { type: Number, required: true },
+    gstAmountPaise: { type: Number, required: true },
+    deliveryFeePaise: { type: Number, required: true },
+    platformFeePaise: { type: Number, required: true },
+    discountPaise: { type: Number, default: 0 },
+    grandTotalPaise: { type: Number, required: true },
+    pdfUrl: { type: String },
+    generatedAt: { type: Date, required: true, default: Date.now },
+    isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true },
 );
 
-export const InvoiceModel = model<IInvoice>('Invoice', invoiceSchema);
+export const Invoice = model<InvoiceDocument>('Invoice', invoiceSchema);

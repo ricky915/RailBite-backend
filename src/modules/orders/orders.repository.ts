@@ -1,68 +1,58 @@
 import type { FilterQuery } from 'mongoose';
 
-import type { IMenu } from '@/models/Menu.model';
-import { MenuModel } from '@/models/Menu.model';
-import type { IOrder } from '@/models/Order.model';
-import { OrderModel } from '@/models/Order.model';
-import type { IRestaurant } from '@/models/Restaurant.model';
-import { RestaurantModel } from '@/models/Restaurant.model';
-import type { PaginatedResult } from '@/types/domain.types';
+import { Order, type OrderDocument } from '@/models/Order.model';
+import type { OrderStatus } from '@/types/domain.types';
 
-/**
- * Data access for the orders module (TRD 3.2.4, 5.3, `orders` collection).
- * Also exposes the read-only restaurant/menu lookups `placeOrder` needs for
- * server-side price/availability re-validation at order time (mirrors the
- * same read-only pattern used by `cart.repository.ts`).
- */
-export class OrdersRepository {
-  findById(id: string): Promise<IOrder | null> {
-    return OrderModel.findOne({ _id: id, isDeleted: false });
-  }
-
-  findRestaurantById(id: string): Promise<IRestaurant | null> {
-    return RestaurantModel.findOne({ _id: id, isDeleted: false });
-  }
-
-  findMenusByRestaurantId(restaurantId: string): Promise<IMenu[]> {
-    return MenuModel.find({ restaurantId, isDeleted: false });
-  }
-
-  findByOrderId(orderId: string): Promise<IOrder | null> {
-    return OrderModel.findOne({ orderId, isDeleted: false });
-  }
-
-  findByIdempotencyKey(idempotencyKey: string): Promise<IOrder | null> {
-    return OrderModel.findOne({ idempotencyKey });
-  }
-
-  async findMany(
-    filter: FilterQuery<IOrder>,
-    skip: number,
-    limit: number,
-  ): Promise<PaginatedResult<IOrder>> {
-    const [data, total] = await Promise.all([
-      OrderModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
-      OrderModel.countDocuments(filter),
-    ]);
-
-    return {
-      data,
-      total,
-      page: Math.floor(skip / limit) + 1,
-      pageSize: limit,
-      totalPages: Math.max(1, Math.ceil(total / limit)),
-    };
-  }
-
-  create(data: Partial<IOrder>): Promise<IOrder> {
-    return OrderModel.create(data);
-  }
-
-  async updateById(id: string, data: Partial<IOrder>): Promise<IOrder | null> {
-    return OrderModel.findOneAndUpdate({ _id: id, isDeleted: false }, data, { new: true });
-  }
-
-  countAll(): Promise<number> {
-    return OrderModel.countDocuments({});
-  }
+function isObjectIdLike(value: string): boolean {
+  return /^[a-f0-9]{24}$/i.test(value);
 }
+
+export interface AppendStatusEntry {
+  status: OrderStatus;
+  changedAt: Date;
+  changedBy?: string;
+  note?: string;
+}
+
+export const ordersRepository = {
+  async findByIdempotencyKey(idempotencyKey: string) {
+    return Order.findOne({ idempotencyKey });
+  },
+
+  async create(data: Record<string, unknown>) {
+    return Order.create(data);
+  },
+
+  async findByIdOrOrderId(idOrOrderId: string) {
+    return isObjectIdLike(idOrOrderId) ? Order.findOne({ _id: idOrOrderId, isDeleted: false }) : Order.findOne({ orderId: idOrOrderId, isDeleted: false });
+  },
+
+  async listForUser(passengerId: string, status: OrderStatus | undefined, skip: number, limit: number) {
+    const query: FilterQuery<OrderDocument> = { passengerId, isDeleted: false };
+    if (status) query.status = status;
+    const [items, total] = await Promise.all([
+      Order.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Order.countDocuments(query),
+    ]);
+    return { items, total };
+  },
+
+  async listForAdmin(filters: { status?: OrderStatus; restaurantId?: string }, skip: number, limit: number) {
+    const query: FilterQuery<OrderDocument> = { isDeleted: false };
+    if (filters.status) query.status = filters.status;
+    if (filters.restaurantId) query.restaurantId = filters.restaurantId;
+    const [items, total] = await Promise.all([
+      Order.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Order.countDocuments(query),
+    ]);
+    return { items, total };
+  },
+
+  async appendStatus(orderId: string, entry: AppendStatusEntry, extra: Record<string, unknown> = {}) {
+    return Order.findByIdAndUpdate(
+      orderId,
+      { status: entry.status, $push: { statusHistory: entry }, ...extra },
+      { new: true },
+    );
+  },
+};

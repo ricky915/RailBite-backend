@@ -1,36 +1,45 @@
-import type { ISupportTicket } from '@/models/SupportTicket.model';
-import type { PaginatedResult } from '@/types/domain.types';
-import { NotImplementedError } from '@/utils/errors';
+import type { FilterQuery } from 'mongoose';
 
-/**
- * Data access for the support module (TRD 3.2.4, 5.3, `supportTickets`
- * collection). Scaffold: ticket queue ordering, SLA tracking, and
- * escalation persistence are planned for a later phase.
- */
-export class SupportRepository {
-  findById(id: string): Promise<ISupportTicket | null> {
-    throw new NotImplementedError(`SupportRepository.findById(${id}) is not yet implemented.`);
-  }
+import { Counter } from '@/models/Counter.model';
+import { SupportTicket, type SupportTicketDocument } from '@/models/SupportTicket.model';
+import type { SupportTicketStatus } from '@/types/domain.types';
 
-  findMany(
-    filter: Record<string, unknown>,
-    skip: number,
-    limit: number,
-  ): Promise<PaginatedResult<ISupportTicket>> {
-    throw new NotImplementedError(
-      `SupportRepository.findMany(${JSON.stringify(filter)}, skip=${skip}, limit=${limit}) is not yet implemented.`,
-    );
-  }
+export const supportRepository = {
+  async nextTicketNumber(): Promise<string> {
+    const year = new Date().getFullYear();
+    const counter = await Counter.findByIdAndUpdate(`ticket:${year}`, { $inc: { seq: 1 } }, { upsert: true, new: true });
+    return `TCK-${year}-${String(counter.seq).padStart(5, '0')}`;
+  },
 
-  create(data: Partial<ISupportTicket>): Promise<ISupportTicket> {
-    throw new NotImplementedError(
-      `SupportRepository.create(${JSON.stringify(data)}) is not yet implemented.`,
-    );
-  }
+  async create(data: Record<string, unknown>) {
+    return SupportTicket.create(data);
+  },
 
-  updateById(id: string, data: Partial<ISupportTicket>): Promise<ISupportTicket | null> {
-    throw new NotImplementedError(
-      `SupportRepository.updateById(${id}, ${JSON.stringify(data)}) is not yet implemented.`,
-    );
-  }
-}
+  async findById(id: string) {
+    return SupportTicket.findOne({ _id: id, isDeleted: false });
+  },
+
+  async listForUser(userId: string, status: SupportTicketStatus | undefined, skip: number, limit: number) {
+    const query: FilterQuery<SupportTicketDocument> = { userId, isDeleted: false };
+    if (status) query.status = status;
+    const [items, total] = await Promise.all([
+      SupportTicket.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      SupportTicket.countDocuments(query),
+    ]);
+    return { items, total };
+  },
+
+  async listAll(status: SupportTicketStatus | undefined, skip: number, limit: number) {
+    const query: FilterQuery<SupportTicketDocument> = { isDeleted: false };
+    if (status) query.status = status;
+    const [items, total] = await Promise.all([
+      SupportTicket.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      SupportTicket.countDocuments(query),
+    ]);
+    return { items, total };
+  },
+
+  async update(id: string, data: Record<string, unknown>) {
+    return SupportTicket.findOneAndUpdate({ _id: id, isDeleted: false }, data, { new: true });
+  },
+};

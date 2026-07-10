@@ -1,35 +1,27 @@
 import type { Request, Response } from 'express';
 
-import type { InitiatePaymentDto, OrderIdParamsDto, WebhookPayloadDto } from '@/modules/payments/payments.dto';
-import type { PaymentsService } from '@/modules/payments/payments.service';
-import { AuthenticationError } from '@/utils/errors';
-import { successResponse } from '@/utils/responseFormatter';
+import { ordersService } from '@/modules/orders/orders.service';
+import { asyncHandler } from '@/utils/asyncHandler';
+import { UnauthorizedError } from '@/utils/errors';
+import { sendSuccess } from '@/utils/responseFormatter';
 
-export class PaymentsController {
-  constructor(private readonly service: PaymentsService) {}
+import { paymentsService } from './payments.service';
 
-  initiate = async (req: Request, res: Response): Promise<void> => {
-    if (!req.user) {
-      throw new AuthenticationError('Please log in to continue.');
+export const paymentsController = {
+  /** Orchestrates Payments + Orders from the controller layer so neither module's service imports the other (see orders.service.ts applyPaymentOutcome doc comment). */
+  webhook: asyncHandler(async (req: Request, res: Response) => {
+    const signature = req.headers['x-razorpay-signature'] as string | undefined;
+    const outcome = await paymentsService.verifyAndHandleWebhook(req.rawBody ?? '', signature);
+    if (outcome) {
+      await ordersService.applyPaymentOutcome(outcome.orderId, outcome.status);
     }
-    const dto = req.body as InitiatePaymentDto;
-    const result = await this.service.initiatePayment(dto, req.user.userId);
-    successResponse(res, result, 'Payment initiated successfully.', 201);
-  };
+    res.status(200).json({ success: true, data: { received: true } });
+  }),
 
-  getStatus = async (req: Request, res: Response): Promise<void> => {
-    if (!req.user) {
-      throw new AuthenticationError('Please log in to continue.');
-    }
-    const { orderId } = req.params as unknown as OrderIdParamsDto;
-    const result = await this.service.getPaymentStatus(orderId, req.user.userId);
-    successResponse(res, result, 'Payment status retrieved successfully.');
-  };
-
-  webhook = async (req: Request, res: Response): Promise<void> => {
-    const dto = req.body as WebhookPayloadDto;
-    const signature = (req.headers['x-razorpay-signature'] as string | undefined) ?? '';
-    await this.service.handleWebhook(dto, signature);
-    successResponse(res, null, 'Webhook processed successfully.');
-  };
-}
+  getStatus: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) throw new UnauthorizedError();
+    await ordersService.assertOwnership(req.params.orderId, req.user.id);
+    const payment = await paymentsService.getStatus(req.params.orderId);
+    sendSuccess(res, payment);
+  }),
+};

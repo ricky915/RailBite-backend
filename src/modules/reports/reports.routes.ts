@@ -1,35 +1,20 @@
 import { Router } from 'express';
 
+import { requireAuth } from '@/middleware/auth.middleware';
+import { requireRole } from '@/middleware/role.middleware';
 import { validate } from '@/middleware/validate.middleware';
-import { ReportsController } from '@/modules/reports/reports.controller';
-import { reportQuerySchema, reportTypeParamsSchema } from '@/modules/reports/reports.dto';
-import { ReportsRepository } from '@/modules/reports/reports.repository';
-import { ReportsService } from '@/modules/reports/reports.service';
-import { asyncHandler } from '@/utils/asyncHandler';
+import { UserRole } from '@/types/domain.types';
 
-const router = Router();
+import { reportsController } from './reports.controller';
+import { reportQuerySchema, reportTypeParamSchema } from './reports.dto';
 
-const repository = new ReportsRepository();
-const service = new ReportsService(repository);
-const controller = new ReportsController(service);
+export const reportsRoutes = Router();
 
-/**
- * @openapi
- * /admin/reports/{type}:
- *   get:
- *     summary: Generate an operational/financial report by type
- *     tags: [Reports]
- *     security: [{ BearerAuth: [] }]
- *     responses:
- *       200: { description: Report generated }
- *
- * # Note: mounted under the `admin` router, which applies authMiddleware +
- * # requireRole(['admin', 'super_admin']) to every route in this file.
- */
-router.get(
+/** @openapi /admin/reports/{type}: get: { summary: Generate an operational report (orders/revenue/restaurants/users), tags: [Reports], security: [{ bearerAuth: [] }] } */
+reportsRoutes.get(
   '/:type',
-  validate({ params: reportTypeParamsSchema, query: reportQuerySchema }),
-  asyncHandler(controller.generate),
+  requireAuth,
+  requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validate({ params: reportTypeParamSchema, query: reportQuerySchema }),
+  reportsController.generate,
 );
-
-export const reportsRoutes = router;

@@ -1,47 +1,39 @@
 import { z } from 'zod';
 
 import { CouponDiscountType } from '@/types/domain.types';
-import { isoDateString, mongoId, paginationQuery } from '@/validations/common.validations';
+
+const objectIdSchema = z.string().regex(/^[a-f0-9]{24}$/i, 'Invalid id');
+
+export const couponIdParamSchema = z.object({ id: objectIdSchema });
+
+export const listCouponsSchema = z.object({
+  active: z.coerce.boolean().optional(),
+});
+export type ListCouponsInput = z.infer<typeof listCouponsSchema>;
 
 export const validateCouponSchema = z.object({
-  code: z
-    .string()
-    .min(4, 'Coupon code must be at least 4 characters.')
-    .max(20, 'Coupon code must not exceed 20 characters.')
-    .transform((value) => value.toUpperCase()),
-  cartSubtotalPaise: z.number().int().positive(),
-  restaurantId: mongoId,
+  code: z.string().trim().toUpperCase().min(1),
+  subtotalPaise: z.number().int().positive(),
+  restaurantId: objectIdSchema,
 });
-export type ValidateCouponDto = z.infer<typeof validateCouponSchema>;
+export type ValidateCouponInput = z.infer<typeof validateCouponSchema>;
 
 export const createCouponSchema = z.object({
-  code: z.string().min(4).max(20).transform((value) => value.toUpperCase()),
-  description: z.string().max(200).optional(),
+  code: z.string().trim().toUpperCase().min(3).max(30),
+  description: z.string().trim().min(3).max(300),
   discountType: z.nativeEnum(CouponDiscountType),
   discountValue: z.number().positive(),
-  minOrderValuePaise: z.number().int().min(0).default(0),
   maxDiscountPaise: z.number().int().positive().optional(),
-  userSegment: z.enum(['all', 'new_user']).default('all'),
-  applicableRestaurantIds: z.array(mongoId).default([]),
-  maxTotalUsage: z.number().int().positive(),
-  perUserUsageLimit: z.number().int().positive().default(1),
-  validFrom: isoDateString,
-  validUntil: isoDateString,
+  minOrderValuePaise: z.number().int().min(0).default(0),
+  validFrom: z.coerce.date(),
+  validUntil: z.coerce.date(),
+  usageLimitTotal: z.number().int().positive().optional(),
+  usageLimitPerUser: z.number().int().positive().default(1),
+  applicableRestaurantIds: z.array(objectIdSchema).default([]),
 });
-export type CreateCouponDto = z.infer<typeof createCouponSchema>;
+export type CreateCouponInput = z.infer<typeof createCouponSchema>;
 
-export const updateCouponSchema = createCouponSchema.partial();
-export type UpdateCouponDto = z.infer<typeof updateCouponSchema>;
-
-export const couponIdParamsSchema = z.object({ id: mongoId });
-export type CouponIdParamsDto = z.infer<typeof couponIdParamsSchema>;
-
-export const listCouponsQuerySchema = paginationQuery.extend({
-  isActive: z.coerce.boolean().optional(),
+export const updateCouponSchema = createCouponSchema.partial().extend({
+  isActive: z.boolean().optional(),
 });
-export type ListCouponsQueryDto = z.infer<typeof listCouponsQuerySchema>;
-
-export const pauseCouponSchema = z.object({
-  isPaused: z.boolean(),
-});
-export type PauseCouponDto = z.infer<typeof pauseCouponSchema>;
+export type UpdateCouponInput = z.infer<typeof updateCouponSchema>;
