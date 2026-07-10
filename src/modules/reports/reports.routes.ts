@@ -10,7 +10,14 @@ import { reportQuerySchema, reportTypeParamSchema } from './reports.dto';
 
 export const reportsRoutes = Router();
 
-/** @openapi /admin/reports/{type}: get: { summary: Generate an operational report (orders/revenue/restaurants/users), tags: [Reports], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /admin/reports/{type}:
+ *   get:
+ *     summary: Generate an operational report (orders/revenue/restaurants/users)
+ *     tags: [Reports]
+ *     security: [{ bearerAuth: [] }]
+ */
 reportsRoutes.get(
   '/:type',
   requireAuth,

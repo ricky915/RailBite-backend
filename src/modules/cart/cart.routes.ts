@@ -8,5 +8,12 @@ import { validateCartSchema } from './cart.dto';
 
 export const cartRoutes = Router();
 
-/** @openapi /cart/validate: post: { summary: Server-side price/availability re-check for the client cart, tags: [Cart], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /cart/validate:
+ *   post:
+ *     summary: Server-side price/availability re-check for the client cart
+ *     tags: [Cart]
+ *     security: [{ bearerAuth: [] }]
+ */
 cartRoutes.post('/validate', requireAuth, validate({ body: validateCartSchema }), cartController.validate);

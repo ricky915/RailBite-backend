@@ -10,7 +10,14 @@ import { listAuditLogsSchema } from './admin.dto';
 
 export const adminRoutes = Router();
 
-/** @openapi /admin/dashboard/summary: get: { summary: Admin dashboard stat tiles + recent orders, tags: [Admin], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /admin/dashboard/summary:
+ *   get:
+ *     summary: Admin dashboard stat tiles + recent orders
+ *     tags: [Admin]
+ *     security: [{ bearerAuth: [] }]
+ */
 adminRoutes.get(
   '/dashboard/summary',
   requireAuth,
@@ -18,7 +25,14 @@ adminRoutes.get(
   adminController.dashboardSummary,
 );
 
-/** @openapi /admin/audit-logs: get: { summary: Immutable audit log viewer, tags: [Admin], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /admin/audit-logs:
+ *   get:
+ *     summary: Immutable audit log viewer
+ *     tags: [Admin]
+ *     security: [{ bearerAuth: [] }]
+ */
 adminRoutes.get(
   '/audit-logs',
   requireAuth,
@@ -27,5 +41,12 @@ adminRoutes.get(
   adminController.listAuditLogs,
 );
 
-/** @openapi /admin/roles: get: { summary: Role list with user counts, tags: [Admin], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /admin/roles:
+ *   get:
+ *     summary: Role list with user counts
+ *     tags: [Admin]
+ *     security: [{ bearerAuth: [] }]
+ */
 adminRoutes.get('/roles', requireAuth, requireRole(UserRole.SUPER_ADMIN), adminController.listRoles);

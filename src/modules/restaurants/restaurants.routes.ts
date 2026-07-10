@@ -88,7 +88,14 @@ const adminRoles = [UserRole.ADMIN, UserRole.SUPER_ADMIN];
 
 export const adminRestaurantsRoutes = Router();
 
-/** @openapi /admin/restaurants: get: { summary: List all restaurants including pending/suspended (admin), tags: [Restaurants], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /admin/restaurants:
+ *   get:
+ *     summary: List all restaurants including pending/suspended (admin)
+ *     tags: [Restaurants]
+ *     security: [{ bearerAuth: [] }]
+ */
 adminRestaurantsRoutes.get(
   '/',
   requireAuth,
@@ -97,7 +104,14 @@ adminRestaurantsRoutes.get(
   restaurantsController.list,
 );
 
-/** @openapi /admin/restaurants/{id}/approve: patch: { summary: Approve a pending restaurant, tags: [Restaurants], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /admin/restaurants/{id}/approve:
+ *   patch:
+ *     summary: Approve a pending restaurant
+ *     tags: [Restaurants]
+ *     security: [{ bearerAuth: [] }]
+ */
 adminRestaurantsRoutes.patch(
   '/:id/approve',
   requireAuth,
@@ -106,7 +120,14 @@ adminRestaurantsRoutes.patch(
   restaurantsController.approve,
 );
 
-/** @openapi /admin/restaurants/{id}/reject: patch: { summary: Reject a pending restaurant, tags: [Restaurants], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /admin/restaurants/{id}/reject:
+ *   patch:
+ *     summary: Reject a pending restaurant
+ *     tags: [Restaurants]
+ *     security: [{ bearerAuth: [] }]
+ */
 adminRestaurantsRoutes.patch(
   '/:id/reject',
   requireAuth,
@@ -115,7 +136,14 @@ adminRestaurantsRoutes.patch(
   restaurantsController.reject,
 );
 
-/** @openapi /admin/restaurants/{id}/suspend: patch: { summary: Suspend an active restaurant, tags: [Restaurants], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /admin/restaurants/{id}/suspend:
+ *   patch:
+ *     summary: Suspend an active restaurant
+ *     tags: [Restaurants]
+ *     security: [{ bearerAuth: [] }]
+ */
 adminRestaurantsRoutes.patch(
   '/:id/suspend',
   requireAuth,

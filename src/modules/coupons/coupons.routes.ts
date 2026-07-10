@@ -12,21 +12,55 @@ export const couponsRoutes = Router();
 
 const adminRoles = [UserRole.ADMIN, UserRole.SUPER_ADMIN];
 
-/** @openapi /coupons: get: { summary: List currently-active coupons, tags: [Coupons] } */
+/**
+ * @openapi
+ * /coupons:
+ *   get:
+ *     summary: List currently-active coupons
+ *     tags: [Coupons]
+ */
 couponsRoutes.get('/', couponsController.listActive);
 
-/** @openapi /coupons/validate: post: { summary: Validate a coupon code against a cart, tags: [Coupons], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /coupons/validate:
+ *   post:
+ *     summary: Validate a coupon code against a cart
+ *     tags: [Coupons]
+ *     security: [{ bearerAuth: [] }]
+ */
 couponsRoutes.post('/validate', requireAuth, validate({ body: validateCouponSchema }), couponsController.validate);
 
 export const adminCouponsRoutes = Router();
 
-/** @openapi /admin/coupons: get: { summary: List all coupons (admin), tags: [Coupons], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /admin/coupons:
+ *   get:
+ *     summary: List all coupons (admin)
+ *     tags: [Coupons]
+ *     security: [{ bearerAuth: [] }]
+ */
 adminCouponsRoutes.get('/', requireAuth, requireRole(...adminRoles), couponsController.listAll);
 
-/** @openapi /admin/coupons: post: { summary: Create a coupon (admin), tags: [Coupons], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /admin/coupons:
+ *   post:
+ *     summary: Create a coupon (admin)
+ *     tags: [Coupons]
+ *     security: [{ bearerAuth: [] }]
+ */
 adminCouponsRoutes.post('/', requireAuth, requireRole(...adminRoles), validate({ body: createCouponSchema }), couponsController.create);
 
-/** @openapi /admin/coupons/{id}: put: { summary: Update a coupon (admin), tags: [Coupons], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /admin/coupons/{id}:
+ *   put:
+ *     summary: Update a coupon (admin)
+ *     tags: [Coupons]
+ *     security: [{ bearerAuth: [] }]
+ */
 adminCouponsRoutes.put(
   '/:id',
   requireAuth,
@@ -35,7 +69,14 @@ adminCouponsRoutes.put(
   couponsController.update,
 );
 
-/** @openapi /admin/coupons/{id}: delete: { summary: Delete a coupon (admin), tags: [Coupons], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /admin/coupons/{id}:
+ *   delete:
+ *     summary: Delete a coupon (admin)
+ *     tags: [Coupons]
+ *     security: [{ bearerAuth: [] }]
+ */
 adminCouponsRoutes.delete(
   '/:id',
   requireAuth,

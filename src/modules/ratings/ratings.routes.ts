@@ -10,16 +10,43 @@ import { createRatingSchema, listRatingsSchema, moderateRatingSchema, ratingIdPa
 
 export const ratingsRoutes = Router();
 
-/** @openapi /ratings: get: { summary: List ratings (filter by restaurant/menuItem/featured), tags: [Ratings] } */
+/**
+ * @openapi
+ * /ratings:
+ *   get:
+ *     summary: List ratings (filter by restaurant/menuItem/featured)
+ *     tags: [Ratings]
+ */
 ratingsRoutes.get('/', validate({ query: listRatingsSchema }), ratingsController.list);
 
-/** @openapi /ratings: post: { summary: Submit a rating for a delivered order, tags: [Ratings], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /ratings:
+ *   post:
+ *     summary: Submit a rating for a delivered order
+ *     tags: [Ratings]
+ *     security: [{ bearerAuth: [] }]
+ */
 ratingsRoutes.post('/', requireAuth, validate({ body: createRatingSchema }), ratingsController.create);
 
-/** @openapi /ratings/{id}: patch: { summary: Edit own rating within the 48h edit window, tags: [Ratings], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /ratings/{id}:
+ *   patch:
+ *     summary: Edit own rating within the 48h edit window
+ *     tags: [Ratings]
+ *     security: [{ bearerAuth: [] }]
+ */
 ratingsRoutes.patch('/:id', requireAuth, validate({ params: ratingIdParamSchema, body: updateRatingSchema }), ratingsController.update);
 
-/** @openapi /ratings/{id}/moderate: patch: { summary: Flag/hide/feature a rating (admin), tags: [Ratings], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /ratings/{id}/moderate:
+ *   patch:
+ *     summary: Flag/hide/feature a rating (admin)
+ *     tags: [Ratings]
+ *     security: [{ bearerAuth: [] }]
+ */
 ratingsRoutes.patch(
   '/:id/moderate',
   requireAuth,
@@ -30,7 +57,14 @@ ratingsRoutes.patch(
 
 export const adminRatingsRoutes = Router();
 
-/** @openapi /admin/ratings: get: { summary: List all ratings including hidden ones (admin), tags: [Ratings], security: [{ bearerAuth: [] }] } */
+/**
+ * @openapi
+ * /admin/ratings:
+ *   get:
+ *     summary: List all ratings including hidden ones (admin)
+ *     tags: [Ratings]
+ *     security: [{ bearerAuth: [] }]
+ */
 adminRatingsRoutes.get(
   '/',
   requireAuth,
