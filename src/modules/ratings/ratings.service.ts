@@ -64,6 +64,18 @@ export const ratingsService = {
     return { items, meta: buildPaginationMeta(page, limit, total) };
   },
 
+  async listAllForAdmin(input: ListRatingsInput) {
+    const page = input.page ?? 1;
+    const limit = Math.min(100, input.limit ?? 20);
+    const { items, total } = await ratingsRepository.list(
+      { restaurantId: input.restaurantId, menuItemId: input.menuItemId, featured: input.featured },
+      (page - 1) * limit,
+      limit,
+      true,
+    );
+    return { items, meta: buildPaginationMeta(page, limit, total) };
+  },
+
   async update(id: string, userId: string, input: UpdateRatingInput) {
     const rating = await ratingsRepository.findById(id);
     if (!rating) throw new NotFoundError('Rating not found');

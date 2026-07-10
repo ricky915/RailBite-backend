@@ -27,3 +27,14 @@ ratingsRoutes.patch(
   validate({ params: ratingIdParamSchema, body: moderateRatingSchema }),
   ratingsController.moderate,
 );
+
+export const adminRatingsRoutes = Router();
+
+/** @openapi /admin/ratings: get: { summary: List all ratings including hidden ones (admin), tags: [Ratings], security: [{ bearerAuth: [] }] } */
+adminRatingsRoutes.get(
+  '/',
+  requireAuth,
+  requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validate({ query: listRatingsSchema }),
+  ratingsController.listAllForAdmin,
+);

@@ -18,6 +18,11 @@ export const ratingsController = {
     sendSuccess(res, items, { meta });
   }),
 
+  listAllForAdmin: asyncHandler(async (req: Request, res: Response) => {
+    const { items, meta } = await ratingsService.listAllForAdmin(req.query as never);
+    sendSuccess(res, items, { meta });
+  }),
+
   update: asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) throw new UnauthorizedError();
     const rating = await ratingsService.update(req.params.id, req.user.id, req.body);

@@ -21,7 +21,7 @@ export const ratingsRepository = {
     if (filters.featured) query.isFeatured = true;
 
     const [items, total] = await Promise.all([
-      Rating.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Rating.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).populate('passengerId', 'name'),
       Rating.countDocuments(query),
     ]);
     return { items, total };
