@@ -1,6 +1,5 @@
 import { PRICING } from '@/config/constants';
 import { MenuItem, type MenuItemDocument } from '@/models/MenuItem.model';
-import { Restaurant } from '@/models/Restaurant.model';
 import { couponsService } from '@/modules/coupons/coupons.service';
 import { BadRequestError, NotFoundError } from '@/utils/errors';
 
@@ -40,15 +39,6 @@ export const cartService = {
       throw new NotFoundError('One or more menu items in your cart could not be found');
     }
 
-    const restaurantIds = new Set(menuItems.map((m) => m.restaurantId.toString()));
-    if (restaurantIds.size > 1) {
-      throw new BadRequestError('Your cart contains items from more than one restaurant — start a new cart to continue');
-    }
-    const restaurantId = [...restaurantIds][0];
-
-    const restaurant = await Restaurant.findOne({ _id: restaurantId, isDeleted: false, isActive: true });
-    if (!restaurant) throw new NotFoundError('Restaurant is not currently available');
-
     const items: ValidatedCartItem[] = input.items.map((inputItem) => {
       const menuItem = menuItemMap.get(inputItem.menuItemId);
       if (!menuItem) throw new NotFoundError('Menu item not found');
@@ -70,8 +60,8 @@ export const cartService = {
 
     const subtotal = items.reduce((sum, i) => sum + i.itemTotal, 0);
 
-    if (subtotal < restaurant.minOrderValuePaise) {
-      throw new BadRequestError(`This restaurant requires a minimum order of ₹${restaurant.minOrderValuePaise / 100}`);
+    if (subtotal < PRICING.MIN_ORDER_VALUE_PAISE) {
+      throw new BadRequestError(`Minimum order value is ₹${PRICING.MIN_ORDER_VALUE_PAISE / 100}`);
     }
 
     const deliveryFeePaise = PRICING.DELIVERY_FEE_PAISE;
@@ -81,7 +71,7 @@ export const cartService = {
     let couponDiscountPaise = 0;
     let couponId: string | undefined;
     if (input.couponCode) {
-      const result = await couponsService.validate(input.couponCode, subtotal, restaurantId, userId);
+      const result = await couponsService.validate(input.couponCode, subtotal, userId);
       couponDiscountPaise = result.discountPaise;
       couponId = result.coupon._id.toString();
     }
@@ -89,7 +79,6 @@ export const cartService = {
     const grandTotal = subtotal + deliveryFeePaise + platformFeePaise + gstAmountPaise - couponDiscountPaise;
 
     return {
-      restaurantId,
       items,
       subtotal,
       deliveryFeePaise,

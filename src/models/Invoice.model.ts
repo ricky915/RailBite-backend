@@ -6,7 +6,6 @@ export interface InvoiceDocument {
   orderId: Types.ObjectId;
   invoiceNumber: string;
   passengerId: Types.ObjectId;
-  restaurantId: Types.ObjectId;
   subtotalPaise: number;
   gstAmountPaise: number;
   deliveryFeePaise: number;
@@ -25,7 +24,6 @@ const invoiceSchema = new Schema<InvoiceDocument>(
     orderId: { type: Schema.Types.ObjectId, ref: 'Order', required: true, unique: true },
     invoiceNumber: { type: String, required: true, unique: true },
     passengerId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    restaurantId: { type: Schema.Types.ObjectId, ref: 'Restaurant', required: true },
     subtotalPaise: { type: Number, required: true },
     gstAmountPaise: { type: Number, required: true },
     deliveryFeePaise: { type: Number, required: true },

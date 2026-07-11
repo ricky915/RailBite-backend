@@ -59,4 +59,8 @@ export const config = {
   swagger: {
     enabled: env.SWAGGER_ENABLED,
   },
+  otp: {
+    // Forced off in production no matter what OTP_BYPASS_CODE is set to.
+    bypassCode: env.NODE_ENV === 'production' ? undefined : env.OTP_BYPASS_CODE,
+  },
 } as const;

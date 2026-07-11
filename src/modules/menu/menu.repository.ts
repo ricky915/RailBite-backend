@@ -29,6 +29,11 @@ export const menuRepository = {
       .limit(limit);
   },
 
+  async listItems(includeUnavailable: boolean) {
+    const query = includeUnavailable ? { isDeleted: false } : { isDeleted: false, isAvailable: true };
+    return MenuItem.find(query).sort({ name: 1 });
+  },
+
   async findItemById(id: string) {
     return MenuItem.findOne({ _id: id, isDeleted: false });
   },

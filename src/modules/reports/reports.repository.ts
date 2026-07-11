@@ -11,7 +11,7 @@ function dateFilter(from?: Date, to?: Date) {
 export const reportsRepository = {
   async ordersReport(from?: Date, to?: Date) {
     return Order.find({ isDeleted: false, ...dateFilter(from, to) })
-      .select('orderId restaurantId status paymentStatus grandTotal createdAt')
+      .select('orderId status paymentStatus grandTotal createdAt')
       .sort({ createdAt: -1 })
       .limit(1000);
   },
@@ -21,24 +21,6 @@ export const reportsRepository = {
       { $match: { isDeleted: false, ...dateFilter(from, to) } },
       { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, revenuePaise: { $sum: '$grandTotal' }, orderCount: { $sum: 1 } } },
       { $sort: { _id: 1 } },
-    ]);
-  },
-
-  async restaurantsReport(from?: Date, to?: Date) {
-    return Order.aggregate([
-      { $match: { isDeleted: false, ...dateFilter(from, to) } },
-      { $group: { _id: '$restaurantId', orderCount: { $sum: 1 }, revenuePaise: { $sum: '$grandTotal' } } },
-      {
-        $lookup: {
-          from: 'restaurants',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'restaurant',
-        },
-      },
-      { $unwind: '$restaurant' },
-      { $project: { restaurantName: '$restaurant.name', orderCount: 1, revenuePaise: 1 } },
-      { $sort: { revenuePaise: -1 } },
     ]);
   },
 

@@ -6,7 +6,7 @@ export const swaggerSpec = swaggerJsdoc({
   definition: {
     openapi: '3.0.3',
     info: {
-      title: 'RailBite API',
+      title: 'SR Food API',
       version: '1.0.0',
       description: 'Railway food ordering platform API',
     },

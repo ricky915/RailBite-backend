@@ -5,7 +5,6 @@ export interface RatingDocument {
   _id: Types.ObjectId;
   orderId: Types.ObjectId;
   passengerId: Types.ObjectId;
-  restaurantId: Types.ObjectId;
   menuItemId?: Types.ObjectId;
   rating: number;
   reviewText?: string;
@@ -22,7 +21,6 @@ const ratingSchema = new Schema<RatingDocument>(
   {
     orderId: { type: Schema.Types.ObjectId, ref: 'Order', required: true },
     passengerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    restaurantId: { type: Schema.Types.ObjectId, ref: 'Restaurant', required: true, index: true },
     menuItemId: { type: Schema.Types.ObjectId, ref: 'MenuItem', index: true },
     rating: { type: Number, required: true, min: 1, max: 5 },
     reviewText: { type: String, maxlength: 1000 },
@@ -35,7 +33,6 @@ const ratingSchema = new Schema<RatingDocument>(
   { timestamps: true },
 );
 
-ratingSchema.index({ restaurantId: 1, createdAt: -1 });
 ratingSchema.index({ menuItemId: 1, createdAt: -1 });
 ratingSchema.index({ orderId: 1, passengerId: 1, menuItemId: 1 }, { unique: true });
 

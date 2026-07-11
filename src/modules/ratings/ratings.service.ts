@@ -38,7 +38,6 @@ export const ratingsService = {
     const rating = await ratingsRepository.create({
       orderId: order._id,
       passengerId: userId,
-      restaurantId: order.restaurantId,
       menuItemId: input.menuItemId,
       rating: input.rating,
       reviewText: input.reviewText,
@@ -46,7 +45,6 @@ export const ratingsService = {
       editWindowExpiresAt,
     });
 
-    await ratingsRepository.recomputeRestaurantAggregate(order.restaurantId.toString());
     if (input.menuItemId) await ratingsRepository.recomputeMenuItemAggregate(input.menuItemId);
 
     return rating;
@@ -56,7 +54,7 @@ export const ratingsService = {
     const page = input.page ?? 1;
     const limit = Math.min(100, input.limit ?? 20);
     const { items, total } = await ratingsRepository.list(
-      { restaurantId: input.restaurantId, menuItemId: input.menuItemId, featured: input.featured },
+      { menuItemId: input.menuItemId, featured: input.featured },
       (page - 1) * limit,
       limit,
       false,
@@ -68,7 +66,7 @@ export const ratingsService = {
     const page = input.page ?? 1;
     const limit = Math.min(100, input.limit ?? 20);
     const { items, total } = await ratingsRepository.list(
-      { restaurantId: input.restaurantId, menuItemId: input.menuItemId, featured: input.featured },
+      { menuItemId: input.menuItemId, featured: input.featured },
       (page - 1) * limit,
       limit,
       true,
@@ -83,7 +81,6 @@ export const ratingsService = {
     if (new Date() > rating.editWindowExpiresAt) throw new BadRequestError('The edit window for this rating has passed');
 
     const updated = await ratingsRepository.update(id, input);
-    await ratingsRepository.recomputeRestaurantAggregate(rating.restaurantId.toString());
     if (rating.menuItemId) await ratingsRepository.recomputeMenuItemAggregate(rating.menuItemId.toString());
     return updated;
   },
@@ -92,7 +89,6 @@ export const ratingsService = {
     const rating = await ratingsRepository.findById(id);
     if (!rating) throw new NotFoundError('Rating not found');
     const updated = await ratingsRepository.update(id, input);
-    await ratingsRepository.recomputeRestaurantAggregate(rating.restaurantId.toString());
     if (rating.menuItemId) await ratingsRepository.recomputeMenuItemAggregate(rating.menuItemId.toString());
     return updated;
   },

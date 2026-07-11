@@ -9,6 +9,6 @@ export const listAuditLogsSchema = z.object({
 export type ListAuditLogsInput = z.infer<typeof listAuditLogsSchema>;
 
 export const updateUserRoleSchema = z.object({
-  role: z.enum(['PASSENGER', 'RESTAURANT_MANAGER', 'RESTAURANT_STAFF', 'SUPPORT_EXEC', 'ADMIN', 'SUPER_ADMIN']),
+  role: z.enum(['PASSENGER', 'SUPPORT_EXEC', 'ADMIN', 'SUPER_ADMIN']),
 });
 export type UpdateUserRoleInput = z.infer<typeof updateUserRoleSchema>;

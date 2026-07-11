@@ -15,7 +15,6 @@ export interface CustomizationGroup {
 
 export interface MenuItemDocument {
   _id: Types.ObjectId;
-  restaurantId: Types.ObjectId;
   categoryId: Types.ObjectId;
   name: string;
   shortDescription?: string;
@@ -53,7 +52,6 @@ const customizationGroupSchema = new Schema<CustomizationGroup>(
 
 const menuItemSchema = new Schema<MenuItemDocument>(
   {
-    restaurantId: { type: Schema.Types.ObjectId, ref: 'Restaurant', required: true },
     categoryId: { type: Schema.Types.ObjectId, ref: 'Category', required: true },
     name: { type: String, required: true, trim: true, maxlength: 120 },
     shortDescription: { type: String, maxlength: 300 },
@@ -74,8 +72,7 @@ const menuItemSchema = new Schema<MenuItemDocument>(
   { timestamps: true, collection: 'menuItems' },
 );
 
-menuItemSchema.index({ restaurantId: 1 });
-menuItemSchema.index({ restaurantId: 1, categoryId: 1 });
+menuItemSchema.index({ categoryId: 1 });
 menuItemSchema.index({ isAvailable: 1 });
 
 export const MenuItem = model<MenuItemDocument>('MenuItem', menuItemSchema);

@@ -1,5 +1,4 @@
 import { Order } from '@/models/Order.model';
-import { Restaurant } from '@/models/Restaurant.model';
 import { User } from '@/models/User.model';
 import { uploadRawBuffer } from '@/services/cloudinary.service';
 import { generateInvoicePdf } from '@/services/pdf.service';
@@ -18,8 +17,8 @@ export const invoicesService = {
     const existing = await invoicesRepository.findByOrderId(order._id.toString());
     if (existing) return existing;
 
-    const [restaurant, passenger] = await Promise.all([Restaurant.findById(order.restaurantId), User.findById(order.passengerId)]);
-    if (!restaurant || !passenger) throw new NotFoundError('Could not resolve order details for invoice generation');
+    const passenger = await User.findById(order.passengerId);
+    if (!passenger) throw new NotFoundError('Could not resolve order details for invoice generation');
 
     const invoiceNumber = await invoicesRepository.nextInvoiceNumber();
 
@@ -27,7 +26,6 @@ export const invoicesService = {
       invoiceNumber,
       orderId: order.orderId,
       createdAt: order.createdAt,
-      restaurantName: restaurant.name,
       passengerName: passenger.name,
       items: order.items.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price, itemTotal: i.itemTotal })),
       subtotalPaise: order.subtotal,
@@ -38,13 +36,12 @@ export const invoicesService = {
       grandTotalPaise: order.grandTotal,
     });
 
-    const pdfUrl = await uploadRawBuffer(pdfBuffer, 'railbite/invoices', invoiceNumber);
+    const pdfUrl = await uploadRawBuffer(pdfBuffer, 'srfood/invoices', invoiceNumber);
 
     return invoicesRepository.create({
       orderId: order._id,
       invoiceNumber,
       passengerId: order.passengerId,
-      restaurantId: order.restaurantId,
       subtotalPaise: order.subtotal,
       gstAmountPaise: order.gstAmountPaise,
       deliveryFeePaise: order.deliveryFeePaise,

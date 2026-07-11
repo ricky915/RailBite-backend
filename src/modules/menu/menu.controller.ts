@@ -11,11 +11,19 @@ function requireUser(req: Request) {
   return req.user;
 }
 
+function isAdmin(req: Request): boolean {
+  return req.user?.role === 'ADMIN' || req.user?.role === 'SUPER_ADMIN';
+}
+
 export const menuController = {
   listCategories: asyncHandler(async (req: Request, res: Response) => {
-    const includeInactive = req.user?.role === 'ADMIN' || req.user?.role === 'SUPER_ADMIN';
-    const categories = await menuService.listCategories(includeInactive);
+    const categories = await menuService.listCategories(isAdmin(req));
     sendSuccess(res, categories);
+  }),
+
+  getFullMenu: asyncHandler(async (req: Request, res: Response) => {
+    const menu = await menuService.getFullMenu(isAdmin(req));
+    sendSuccess(res, menu);
   }),
 
   createCategory: asyncHandler(async (req: Request, res: Response) => {
@@ -45,26 +53,26 @@ export const menuController = {
   }),
 
   createItem: asyncHandler(async (req: Request, res: Response) => {
-    const user = requireUser(req);
-    const item = await menuService.createItem(req.body, user);
+    requireUser(req);
+    const item = await menuService.createItem(req.body);
     sendSuccess(res, item, { statusCode: 201, message: 'Menu item created' });
   }),
 
   updateItem: asyncHandler(async (req: Request, res: Response) => {
     const user = requireUser(req);
-    const item = await menuService.updateItem(req.params.id, req.body, user);
+    const item = await menuService.updateItem(req.params.id, req.body, user.id);
     sendSuccess(res, item, { message: 'Menu item updated' });
   }),
 
   setAvailability: asyncHandler(async (req: Request, res: Response) => {
     const user = requireUser(req);
-    const item = await menuService.setAvailability(req.params.id, req.body, user);
+    const item = await menuService.setAvailability(req.params.id, req.body, user.id);
     sendSuccess(res, item, { message: 'Availability updated' });
   }),
 
   deleteItem: asyncHandler(async (req: Request, res: Response) => {
     const user = requireUser(req);
-    await menuService.deleteItem(req.params.id, user);
+    await menuService.deleteItem(req.params.id, user.id);
     sendSuccess(res, null, { message: 'Menu item deleted' });
   }),
 };

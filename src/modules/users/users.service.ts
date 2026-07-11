@@ -69,7 +69,7 @@ export const usersService = {
   },
 
   async uploadPhoto(userId: string, fileBuffer: Buffer) {
-    const url = await uploadImageBuffer(fileBuffer, 'railbite/profile-photos');
+    const url = await uploadImageBuffer(fileBuffer, 'srfood/profile-photos');
     const user = await usersRepository.updateProfile(userId, { profilePhotoUrl: url });
     if (!user) throw new NotFoundError('User not found');
     return user;

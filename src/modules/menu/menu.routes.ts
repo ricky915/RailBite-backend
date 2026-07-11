@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import { requireAuth } from '@/middleware/auth.middleware';
+import { optionalAuth, requireAuth } from '@/middleware/auth.middleware';
 import { requireRole } from '@/middleware/role.middleware';
 import { validate } from '@/middleware/validate.middleware';
 import { UserRole } from '@/types/domain.types';
@@ -18,7 +18,6 @@ import {
 
 export const menuRoutes = Router();
 
-const manageRoles = [UserRole.RESTAURANT_MANAGER, UserRole.ADMIN, UserRole.SUPER_ADMIN];
 const adminRoles = [UserRole.ADMIN, UserRole.SUPER_ADMIN];
 
 /**
@@ -28,7 +27,16 @@ const adminRoles = [UserRole.ADMIN, UserRole.SUPER_ADMIN];
  *     summary: List menu categories
  *     tags: [Menu]
  */
-menuRoutes.get('/categories', menuController.listCategories);
+menuRoutes.get('/categories', optionalAuth, menuController.listCategories);
+
+/**
+ * @openapi
+ * /menu:
+ *   get:
+ *     summary: Full catalog — all categories and items (admins also see inactive/unavailable ones)
+ *     tags: [Menu]
+ */
+menuRoutes.get('/', optionalAuth, menuController.getFullMenu);
 
 /**
  * @openapi
@@ -100,14 +108,14 @@ menuRoutes.get('/items/:id', validate({ params: menuItemIdParamSchema }), menuCo
  * @openapi
  * /menu/items:
  *   post:
- *     summary: Create a menu item (restaurant manager/admin)
+ *     summary: Create a menu item (admin)
  *     tags: [Menu]
  *     security: [{ bearerAuth: [] }]
  */
 menuRoutes.post(
   '/items',
   requireAuth,
-  requireRole(...manageRoles),
+  requireRole(...adminRoles),
   validate({ body: createMenuItemSchema }),
   menuController.createItem,
 );
@@ -116,14 +124,14 @@ menuRoutes.post(
  * @openapi
  * /menu/items/{id}:
  *   patch:
- *     summary: Update a menu item (owner manager/admin)
+ *     summary: Update a menu item (admin)
  *     tags: [Menu]
  *     security: [{ bearerAuth: [] }]
  */
 menuRoutes.patch(
   '/items/:id',
   requireAuth,
-  requireRole(...manageRoles),
+  requireRole(...adminRoles),
   validate({ params: menuItemIdParamSchema, body: updateMenuItemSchema }),
   menuController.updateItem,
 );
@@ -139,7 +147,7 @@ menuRoutes.patch(
 menuRoutes.patch(
   '/items/:id/availability',
   requireAuth,
-  requireRole(...manageRoles),
+  requireRole(...adminRoles),
   validate({ params: menuItemIdParamSchema, body: setAvailabilitySchema }),
   menuController.setAvailability,
 );
@@ -148,14 +156,14 @@ menuRoutes.patch(
  * @openapi
  * /menu/items/{id}:
  *   delete:
- *     summary: Soft-delete a menu item (owner manager/admin)
+ *     summary: Soft-delete a menu item (admin)
  *     tags: [Menu]
  *     security: [{ bearerAuth: [] }]
  */
 menuRoutes.delete(
   '/items/:id',
   requireAuth,
-  requireRole(...manageRoles),
+  requireRole(...adminRoles),
   validate({ params: menuItemIdParamSchema }),
   menuController.deleteItem,
 );

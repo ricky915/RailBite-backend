@@ -19,7 +19,7 @@ const prodFormat = combine(timestamp(), errors({ stack: true }), json());
 export const logger = winston.createLogger({
   level: config.app.isProduction ? 'info' : 'debug',
   format: config.app.isProduction ? prodFormat : devFormat,
-  defaultMeta: { service: 'railbite-api' },
+  defaultMeta: { service: 'srfood-api' },
   transports: [new winston.transports.Console()],
   silent: config.app.isTest,
 });

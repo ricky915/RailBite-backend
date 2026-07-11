@@ -10,8 +10,6 @@ export const reportsService = {
         return reportsRepository.ordersReport(input.from, input.to);
       case 'revenue':
         return reportsRepository.revenueReport(input.from, input.to);
-      case 'restaurants':
-        return reportsRepository.restaurantsReport(input.from, input.to);
       case 'users':
         return reportsRepository.usersReport(input.from, input.to);
       default:

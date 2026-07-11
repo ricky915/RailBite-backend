@@ -6,7 +6,6 @@ declare global {
       user?: {
         id: string;
         role: UserRole;
-        restaurantId?: string;
       };
       requestId?: string;
       rawBody?: string;

@@ -30,7 +30,6 @@ export interface OrderDocument {
   _id: Types.ObjectId;
   orderId: string;
   passengerId: Types.ObjectId;
-  restaurantId: Types.ObjectId;
   trainNumber?: string;
   pnr?: string;
   coach?: string;
@@ -91,7 +90,6 @@ const orderSchema = new Schema<OrderDocument>(
   {
     orderId: { type: String, required: true, unique: true },
     passengerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    restaurantId: { type: Schema.Types.ObjectId, ref: 'Restaurant', required: true },
     trainNumber: { type: String },
     pnr: { type: String },
     coach: { type: String },
@@ -121,6 +119,6 @@ const orderSchema = new Schema<OrderDocument>(
 );
 
 orderSchema.index({ passengerId: 1, createdAt: -1 });
-orderSchema.index({ restaurantId: 1, status: 1 });
+orderSchema.index({ status: 1 });
 
 export const Order = model<OrderDocument>('Order', orderSchema);

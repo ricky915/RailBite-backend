@@ -50,9 +50,5 @@ export const listAdminOrdersSchema = z.object({
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().optional(),
   status: z.nativeEnum(OrderStatus).optional(),
-  restaurantId: z
-    .string()
-    .regex(/^[a-f0-9]{24}$/i)
-    .optional(),
 });
 export type ListAdminOrdersInput = z.infer<typeof listAdminOrdersSchema>;

@@ -1,12 +1,13 @@
 {
-  "name": "railbite-api",
+  "name": "srfood-api",
   "version": "1.0.0",
-  "description": "RailBite - Railway Food Ordering Platform API",
+  "description": "SR Food (ShreeRadheFood) - Railway Food Ordering Platform API",
   "main": "dist/server.js",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
+    "predev": "node scripts/free-port.js",
     "dev": "nodemon",
     "seed": "ts-node -r tsconfig-paths/register scripts/seed.ts",
     "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
@@ -19,12 +20,12 @@
     "test:coverage": "jest --coverage"
   },
   "keywords": [
-    "railbite",
+    "srfood",
     "railway",
     "food-ordering",
     "api"
   ],
-  "author": "RailBite Engineering",
+  "author": "SR Food Engineering",
   "license": "UNLICENSED",
   "dependencies": {
     "axios": "^1.7.9",

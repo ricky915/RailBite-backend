@@ -18,14 +18,13 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
 
     const payload = verifyAccessToken(token);
 
-    const user = await User.findById(payload.sub).select('role isBlocked isDeleted restaurantId').lean();
+    const user = await User.findById(payload.sub).select('role isBlocked isDeleted').lean();
     if (!user || user.isDeleted) throw new UnauthorizedError('User no longer exists');
     if (user.isBlocked) throw new UnauthorizedError('Account is blocked');
 
     req.user = {
       id: payload.sub,
       role: user.role,
-      restaurantId: user.restaurantId?.toString(),
     };
     next();
   } catch (error) {
@@ -46,9 +45,9 @@ export async function optionalAuth(req: Request, _res: Response, next: NextFunct
   }
   try {
     const payload = verifyAccessToken(token);
-    const user = await User.findById(payload.sub).select('role isBlocked isDeleted restaurantId').lean();
+    const user = await User.findById(payload.sub).select('role isBlocked isDeleted').lean();
     if (user && !user.isDeleted && !user.isBlocked) {
-      req.user = { id: payload.sub, role: user.role, restaurantId: user.restaurantId?.toString() };
+      req.user = { id: payload.sub, role: user.role };
     }
   } catch {
     // Ignore invalid tokens on optional-auth routes.

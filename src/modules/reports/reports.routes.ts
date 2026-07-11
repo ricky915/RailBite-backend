@@ -14,7 +14,7 @@ export const reportsRoutes = Router();
  * @openapi
  * /admin/reports/{type}:
  *   get:
- *     summary: Generate an operational report (orders/revenue/restaurants/users)
+ *     summary: Generate an operational report (orders/revenue/users)
  *     tags: [Reports]
  *     security: [{ bearerAuth: [] }]
  */

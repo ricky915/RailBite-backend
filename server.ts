@@ -14,7 +14,7 @@ async function bootstrap(): Promise<void> {
   const app = createApp();
 
   const server = app.listen(config.app.port, () => {
-    logger.info(`RailBite API listening on port ${config.app.port}`, {
+    logger.info(`SR Food API listening on port ${config.app.port}`, {
       env: config.app.nodeEnv,
       apiVersion: config.app.apiVersion,
     });

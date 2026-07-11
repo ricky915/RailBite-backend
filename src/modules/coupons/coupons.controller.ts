@@ -20,8 +20,8 @@ export const couponsController = {
 
   validate: asyncHandler(async (req: Request, res: Response) => {
     const user = requireUser(req);
-    const { code, subtotalPaise, restaurantId } = req.body;
-    const result = await couponsService.validate(code, subtotalPaise, restaurantId, user.id);
+    const { code, subtotalPaise } = req.body;
+    const result = await couponsService.validate(code, subtotalPaise, user.id);
     sendSuccess(res, { discountPaise: result.discountPaise, code: result.coupon.code });
   }),
 

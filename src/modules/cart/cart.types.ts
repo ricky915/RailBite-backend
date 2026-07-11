@@ -9,7 +9,6 @@ export interface ValidatedCartItem {
 }
 
 export interface ValidatedCart {
-  restaurantId: string;
   items: ValidatedCartItem[];
   subtotal: number;
   deliveryFeePaise: number;

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const reportTypeParamSchema = z.object({
-  type: z.enum(['orders', 'revenue', 'restaurants', 'users']),
+  type: z.enum(['orders', 'revenue', 'users']),
 });
 export type ReportType = z.infer<typeof reportTypeParamSchema>['type'];
 

@@ -14,7 +14,7 @@ export const ratingsRoutes = Router();
  * @openapi
  * /ratings:
  *   get:
- *     summary: List ratings (filter by restaurant/menuItem/featured)
+ *     summary: List ratings (filter by menuItem/featured)
  *     tags: [Ratings]
  */
 ratingsRoutes.get('/', validate({ query: listRatingsSchema }), ratingsController.list);

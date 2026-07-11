@@ -37,7 +37,6 @@ const customizationGroupSchema = z.object({
 });
 
 export const createMenuItemSchema = z.object({
-  restaurantId: objectIdSchema,
   categoryId: objectIdSchema,
   name: z.string().trim().min(2).max(120),
   shortDescription: z.string().trim().max(300).optional(),
@@ -53,7 +52,7 @@ export const createMenuItemSchema = z.object({
 });
 export type CreateMenuItemInput = z.infer<typeof createMenuItemSchema>;
 
-export const updateMenuItemSchema = createMenuItemSchema.partial().omit({ restaurantId: true });
+export const updateMenuItemSchema = createMenuItemSchema.partial();
 export type UpdateMenuItemInput = z.infer<typeof updateMenuItemSchema>;
 
 export const setAvailabilitySchema = z.object({

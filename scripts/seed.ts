@@ -6,10 +6,10 @@ import { Category } from '@/models/Category.model';
 import { CmsContent } from '@/models/CmsContent.model';
 import { Coupon } from '@/models/Coupon.model';
 import { MenuItem } from '@/models/MenuItem.model';
-import { Restaurant } from '@/models/Restaurant.model';
+import { Station } from '@/models/Station.model';
 import { User } from '@/models/User.model';
 import { uploadImageBuffer } from '@/services/cloudinary.service';
-import { CmsContentType, CouponDiscountType, RestaurantStatus, UserRole } from '@/types/domain.types';
+import { CmsContentType, CouponDiscountType, UserRole } from '@/types/domain.types';
 import { hashPassword } from '@/utils/hash';
 import { logger } from '@/utils/logger';
 
@@ -155,10 +155,28 @@ const MENU_ITEM_SEEDS: MenuItemSeed[] = [
   },
 ];
 
+interface StationSeed {
+  name: string;
+  code: string;
+}
+
+const STATION_SEEDS: StationSeed[] = [
+  { name: 'New Delhi', code: 'NDLS' },
+  { name: 'Mumbai Central', code: 'BCT' },
+  { name: 'Bhopal Junction', code: 'BPL' },
+  { name: 'Kanpur Central', code: 'CNB' },
+  { name: 'Lucknow', code: 'LKO' },
+  { name: 'Chennai Central', code: 'MAS' },
+  { name: 'Howrah Junction', code: 'HWH' },
+  { name: 'Bengaluru City', code: 'SBC' },
+  { name: 'Ahmedabad Junction', code: 'ADI' },
+  { name: 'Jaipur Junction', code: 'JP' },
+];
+
 async function seedCategories(): Promise<Map<string, string>> {
   const slugToId = new Map<string, string>();
   for (const seed of CATEGORY_SEEDS) {
-    const imageUrl = await uploadFrontendAsset(seed.assetFile, 'railbite/categories');
+    const imageUrl = await uploadFrontendAsset(seed.assetFile, 'srfood/categories');
     const category = await Category.findOneAndUpdate(
       { slug: seed.slug },
       { name: seed.name, slug: seed.slug, icon: seed.icon, displayOrder: seed.displayOrder, ...(imageUrl ? { imageUrl } : {}) },
@@ -170,65 +188,16 @@ async function seedCategories(): Promise<Map<string, string>> {
   return slugToId;
 }
 
-async function seedDemoRestaurant(): Promise<string> {
-  const managerEmail = process.env.SEED_MANAGER_EMAIL ?? 'manager@railbite.example';
-  const managerMobile = process.env.SEED_MANAGER_MOBILE ?? '9000000001';
-  const managerPassword = process.env.SEED_MANAGER_PASSWORD ?? 'Manager@12345';
-
-  let manager = await User.findOne({ email: managerEmail });
-  if (!manager) {
-    manager = await User.create({
-      name: 'RailBite Demo Manager',
-      email: managerEmail,
-      mobile: managerMobile,
-      passwordHash: await hashPassword(managerPassword),
-      role: UserRole.RESTAURANT_MANAGER,
-      isEmailVerified: true,
-      isMobileVerified: true,
-    });
-    logger.info(`Seeded restaurant manager user: ${managerEmail} / ${managerPassword}`);
-  }
-
-  const restaurant = await Restaurant.findOneAndUpdate(
-    { ownerUserId: manager._id },
-    {
-      name: 'RailBite Kitchens',
-      description: 'Our first FSSAI-certified partner kitchen, serving passengers along the Delhi-Mumbai corridor.',
-      cuisineTypes: ['North Indian', 'Biryani', 'Desserts'],
-      ownerUserId: manager._id,
-      stationCodes: ['NDLS', 'BPL', 'BCT'],
-      address: 'Platform Kitchen Unit 4, New Delhi Railway Station',
-      contactPhone: managerMobile,
-      contactEmail: managerEmail,
-      status: RestaurantStatus.APPROVED,
-      isActive: true,
-      approvedAt: new Date(),
-      minOrderValuePaise: 10000,
-      codEligible: true,
-    },
-    { upsert: true, new: true },
-  );
-
-  if (manager.restaurantId?.toString() !== restaurant._id.toString()) {
-    manager.restaurantId = restaurant._id;
-    await manager.save();
-  }
-
-  logger.info(`Demo restaurant seeded: ${restaurant.name}`);
-  return restaurant._id.toString();
-}
-
-async function seedMenuItems(restaurantId: string, categoryIdBySlug: Map<string, string>): Promise<void> {
+async function seedMenuItems(categoryIdBySlug: Map<string, string>): Promise<void> {
   for (const seed of MENU_ITEM_SEEDS) {
     const categoryId = categoryIdBySlug.get(seed.categorySlug);
     if (!categoryId) throw new Error(`Category not seeded: ${seed.categorySlug}`);
 
-    const imageUrl = await uploadFrontendAsset(seed.assetFile, 'railbite/menu-items');
+    const imageUrl = await uploadFrontendAsset(seed.assetFile, 'srfood/menu-items');
 
     await MenuItem.findOneAndUpdate(
-      { restaurantId, name: seed.name },
+      { name: seed.name },
       {
-        restaurantId,
         categoryId,
         name: seed.name,
         shortDescription: seed.shortDescription,
@@ -246,11 +215,22 @@ async function seedMenuItems(restaurantId: string, categoryIdBySlug: Map<string,
   }
 }
 
+async function seedStations(): Promise<void> {
+  for (const seed of STATION_SEEDS) {
+    await Station.findOneAndUpdate(
+      { code: seed.code },
+      { name: seed.name, code: seed.code, isActive: true },
+      { upsert: true, new: true },
+    );
+    logger.info(`Station seeded: ${seed.name}`);
+  }
+}
+
 async function seedCoupons(): Promise<void> {
   const oneYearFromNow = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
   const coupons = [
     {
-      code: 'RAILBITE10',
+      code: 'SRFOOD10',
       description: '10% off on your first order',
       discountType: CouponDiscountType.PERCENTAGE,
       discountValue: 10,
@@ -287,7 +267,7 @@ async function seedCoupons(): Promise<void> {
   for (const coupon of coupons) {
     await Coupon.findOneAndUpdate(
       { code: coupon.code },
-      { ...coupon, validFrom: new Date(), validUntil: oneYearFromNow, applicableRestaurantIds: [], isActive: true },
+      { ...coupon, validFrom: new Date(), validUntil: oneYearFromNow, isActive: true },
       { upsert: true, new: true },
     );
     logger.info(`Coupon seeded: ${coupon.code}`);
@@ -304,7 +284,7 @@ async function seedCmsContent(): Promise<void> {
           { eyebrow: 'Fresh Thalis,', title: 'Every Journey!', desc: 'Regional flavors, packed hot and delivered station-side.', cta: 'Explore Menu' },
           { eyebrow: 'Hygienic Kitchens,', title: 'Honest Pricing!', desc: 'FSSAI-certified partners. Live tracking till your seat.', cta: 'See Offers' },
         ],
-        offer: { code: 'RAILBITE10', percent: 10, headline: 'On Your First Order', sub: 'Fast Delivery Right to Your Seat' },
+        offer: { code: 'SRFOOD10', percent: 10, headline: 'On Your First Order', sub: 'Fast Delivery Right to Your Seat' },
       },
     },
     {
@@ -312,37 +292,37 @@ async function seedCmsContent(): Promise<void> {
       data: {
         faqs: [
           { question: 'How do I place an order?', answer: 'Browse the menu, add items to your cart, then enter your PNR, coach and seat number at checkout.', displayOrder: 1 },
-          { question: 'How is food delivered on train?', answer: 'Our partner kitchens near your upcoming station prepare food and hand it over at the platform to your seat.', displayOrder: 2 },
+          { question: 'How is food delivered on train?', answer: 'Our kitchen near your upcoming station prepares food and hands it over at the platform to your seat.', displayOrder: 2 },
           { question: 'Can I cancel an order?', answer: 'Orders can be cancelled before they enter the Preparing stage. Contact support for assistance.', displayOrder: 3 },
           { question: 'What are the payment options?', answer: 'We accept UPI, Cards, Wallets and Cash on Delivery.', displayOrder: 4 },
-          { question: 'Is the food hygienic?', answer: 'All partner kitchens are FSSAI-certified and follow strict hygiene protocols.', displayOrder: 5 },
+          { question: 'Is the food hygienic?', answer: 'Our kitchen is FSSAI-certified and follows strict hygiene protocols.', displayOrder: 5 },
         ],
       },
     },
     {
       type: CmsContentType.LEGAL_PRIVACY,
       data: {
-        text: 'RailBite respects your privacy. We collect the minimum information necessary to deliver your order — name, contact, PNR/seat details, and payment confirmation. We do not sell your data. Payment details are handled by secure PCI-DSS compliant gateways. You may request deletion of your account at any time from your profile.',
+        text: 'SR Food respects your privacy. We collect the minimum information necessary to deliver your order — name, contact, PNR/seat details, and payment confirmation. We do not sell your data. Payment details are handled by secure PCI-DSS compliant gateways. You may request deletion of your account at any time from your profile.',
       },
     },
     {
       type: CmsContentType.LEGAL_TERMS,
       data: {
-        text: 'By using RailBite you agree to place genuine orders with accurate PNR/seat details. Refunds are issued for undelivered or unsatisfactory orders as per our refund policy. RailBite is a marketplace connecting travelers with FSSAI-certified kitchens; food quality is the responsibility of the partner restaurant. Prices are inclusive of applicable taxes unless stated otherwise.',
+        text: 'By using SR Food you agree to place genuine orders with accurate PNR/seat details. Refunds are issued for undelivered or unsatisfactory orders as per our refund policy. Prices are inclusive of applicable taxes unless stated otherwise.',
       },
     },
     {
       type: CmsContentType.SETTINGS,
       data: {
         social: {
-          facebook: 'https://facebook.com/railbite',
-          instagram: 'https://instagram.com/railbite',
-          twitter: 'https://twitter.com/railbite',
-          youtube: 'https://youtube.com/@railbite',
+          facebook: 'https://facebook.com/srfood',
+          instagram: 'https://instagram.com/srfood',
+          twitter: 'https://twitter.com/srfood',
+          youtube: 'https://youtube.com/@srfood',
         },
-        contactEmail: 'support@railbite.example',
+        contactEmail: 'support@srfood.example',
         contactPhone: '+91 98765 43210',
-        contactAddress: 'RailBite HQ, Sector 21, New Delhi, India',
+        contactAddress: 'SR Food HQ, Sector 21, New Delhi, India',
       },
     },
   ];
@@ -354,7 +334,7 @@ async function seedCmsContent(): Promise<void> {
 }
 
 async function seedSuperAdmin(): Promise<void> {
-  const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@railbite.example';
+  const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@srfood.example';
   const mobile = process.env.SEED_ADMIN_MOBILE ?? '9000000000';
   const password = process.env.SEED_ADMIN_PASSWORD ?? 'Admin@12345';
 
@@ -365,7 +345,7 @@ async function seedSuperAdmin(): Promise<void> {
   }
 
   await User.create({
-    name: 'RailBite Super Admin',
+    name: 'SR Food Super Admin',
     email,
     mobile,
     passwordHash: await hashPassword(password),
@@ -381,8 +361,8 @@ async function main(): Promise<void> {
   try {
     await seedSuperAdmin();
     const categoryIdBySlug = await seedCategories();
-    const restaurantId = await seedDemoRestaurant();
-    await seedMenuItems(restaurantId, categoryIdBySlug);
+    await seedMenuItems(categoryIdBySlug);
+    await seedStations();
     await seedCoupons();
     await seedCmsContent();
     logger.info('Seed complete.');

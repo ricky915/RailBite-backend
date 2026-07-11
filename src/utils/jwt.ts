@@ -6,7 +6,6 @@ import type { UserRole } from '@/types/domain.types';
 export interface AccessTokenPayload {
   sub: string;
   role: UserRole;
-  restaurantId?: string;
 }
 
 export interface RefreshTokenPayload {

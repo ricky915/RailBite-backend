@@ -24,7 +24,7 @@ const envSchema = z.object({
   MSG91_SENDER_ID: z.string().optional().default(''),
 
   SENDGRID_API_KEY: z.string().optional().default(''),
-  SENDGRID_FROM_EMAIL: z.string().optional().default('no-reply@railbite.example'),
+  SENDGRID_FROM_EMAIL: z.string().optional().default('no-reply@srfood.example'),
 
   RAIL_API_BASE_URL: z.string().optional().default(''),
   RAIL_API_KEY: z.string().optional().default(''),
@@ -41,6 +41,12 @@ const envSchema = z.object({
     .string()
     .default('true')
     .transform((v) => v === 'true'),
+
+  /** Dev-only: when set, every OTP is this fixed code and is never actually dispatched via SMS/email. Forced off in production regardless of this value — see config/index.ts. */
+  OTP_BYPASS_CODE: z
+    .string()
+    .regex(/^\d{6}$/, 'OTP_BYPASS_CODE must be exactly 6 digits')
+    .optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

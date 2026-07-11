@@ -4,7 +4,6 @@ export interface InvoicePdfData {
   invoiceNumber: string;
   orderId: string;
   createdAt: Date;
-  restaurantName: string;
   passengerName: string;
   items: { name: string; quantity: number; price: number; itemTotal: number }[];
   subtotalPaise: number;
@@ -27,7 +26,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> 
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    doc.fontSize(20).text('RailBite', { align: 'left' });
+    doc.fontSize(20).text('SR Food', { align: 'left' });
     doc.fontSize(10).text('Tax Invoice', { align: 'left' });
     doc.moveDown();
 
@@ -35,7 +34,6 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> 
     doc.text(`Invoice Number: ${data.invoiceNumber}`);
     doc.text(`Order ID: ${data.orderId}`);
     doc.text(`Date: ${data.createdAt.toDateString()}`);
-    doc.text(`Restaurant: ${data.restaurantName}`);
     doc.text(`Customer: ${data.passengerName}`);
     doc.moveDown();
 

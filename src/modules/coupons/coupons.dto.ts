@@ -14,7 +14,6 @@ export type ListCouponsInput = z.infer<typeof listCouponsSchema>;
 export const validateCouponSchema = z.object({
   code: z.string().trim().toUpperCase().min(1),
   subtotalPaise: z.number().int().positive(),
-  restaurantId: objectIdSchema,
 });
 export type ValidateCouponInput = z.infer<typeof validateCouponSchema>;
 
@@ -29,7 +28,6 @@ export const createCouponSchema = z.object({
   validUntil: z.coerce.date(),
   usageLimitTotal: z.number().int().positive().optional(),
   usageLimitPerUser: z.number().int().positive().default(1),
-  applicableRestaurantIds: z.array(objectIdSchema).default([]),
 });
 export type CreateCouponInput = z.infer<typeof createCouponSchema>;
 

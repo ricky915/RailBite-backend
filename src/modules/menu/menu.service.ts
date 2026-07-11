@@ -1,6 +1,4 @@
-import { Restaurant } from '@/models/Restaurant.model';
-import { UserRole } from '@/types/domain.types';
-import { ForbiddenError, NotFoundError } from '@/utils/errors';
+import { NotFoundError } from '@/utils/errors';
 
 import type {
   CreateCategoryInput,
@@ -11,25 +9,17 @@ import type {
 } from './menu.dto';
 import { menuRepository } from './menu.repository';
 
-async function assertRestaurantOwnership(restaurantId: string, user: { id: string; role: UserRole }): Promise<void> {
-  if (user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN) return;
-  const restaurant = await Restaurant.findOne({ _id: restaurantId, isDeleted: false });
-  if (!restaurant) throw new NotFoundError('Restaurant not found');
-  if (restaurant.ownerUserId.toString() !== user.id) {
-    throw new ForbiddenError('You do not manage this restaurant');
-  }
-}
-
-async function assertMenuItemOwnership(itemId: string, user: { id: string; role: UserRole }) {
-  const item = await menuRepository.findItemById(itemId);
-  if (!item) throw new NotFoundError('Menu item not found');
-  await assertRestaurantOwnership(item.restaurantId.toString(), user);
-  return item;
-}
-
 export const menuService = {
   async listCategories(includeInactive: boolean) {
     return menuRepository.listCategories(includeInactive);
+  },
+
+  async getFullMenu(includeUnavailable: boolean) {
+    const [categories, items] = await Promise.all([
+      menuRepository.listCategories(includeUnavailable),
+      menuRepository.listItems(includeUnavailable),
+    ]);
+    return { categories, items };
   },
 
   async createCategory(input: CreateCategoryInput) {
@@ -58,28 +48,24 @@ export const menuService = {
     return item;
   },
 
-  async createItem(input: CreateMenuItemInput, user: { id: string; role: UserRole }) {
-    await assertRestaurantOwnership(input.restaurantId, user);
+  async createItem(input: CreateMenuItemInput) {
     return menuRepository.createItem(input);
   },
 
-  async updateItem(id: string, input: UpdateMenuItemInput, user: { id: string; role: UserRole }) {
-    await assertMenuItemOwnership(id, user);
-    const item = await menuRepository.updateItem(id, input, user.id);
+  async updateItem(id: string, input: UpdateMenuItemInput, updatedBy: string) {
+    const item = await menuRepository.updateItem(id, input, updatedBy);
     if (!item) throw new NotFoundError('Menu item not found');
     return item;
   },
 
-  async setAvailability(id: string, input: SetAvailabilityInput, user: { id: string; role: UserRole }) {
-    await assertMenuItemOwnership(id, user);
-    const item = await menuRepository.updateItem(id, { isAvailable: input.isAvailable }, user.id);
+  async setAvailability(id: string, input: SetAvailabilityInput, updatedBy: string) {
+    const item = await menuRepository.updateItem(id, { isAvailable: input.isAvailable }, updatedBy);
     if (!item) throw new NotFoundError('Menu item not found');
     return item;
   },
 
-  async deleteItem(id: string, user: { id: string; role: UserRole }) {
-    await assertMenuItemOwnership(id, user);
-    const item = await menuRepository.softDeleteItem(id, user.id);
+  async deleteItem(id: string, updatedBy: string) {
+    const item = await menuRepository.softDeleteItem(id, updatedBy);
     if (!item) throw new NotFoundError('Menu item not found');
     return item;
   },

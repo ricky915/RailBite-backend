@@ -1,14 +1,11 @@
 export enum UserRole {
   PASSENGER = 'PASSENGER',
-  RESTAURANT_MANAGER = 'RESTAURANT_MANAGER',
-  RESTAURANT_STAFF = 'RESTAURANT_STAFF',
   SUPPORT_EXEC = 'SUPPORT_EXEC',
   ADMIN = 'ADMIN',
   SUPER_ADMIN = 'SUPER_ADMIN',
 }
 
 export const ADMIN_ROLES = [UserRole.ADMIN, UserRole.SUPER_ADMIN] as const;
-export const RESTAURANT_ROLES = [UserRole.RESTAURANT_MANAGER, UserRole.RESTAURANT_STAFF] as const;
 
 /** PRD §14 full status enum. */
 export enum OrderStatus {
@@ -120,13 +117,6 @@ export enum PaymentStatus {
   FAILED = 'failed',
   REFUNDED = 'refunded',
   PARTIAL_REFUND = 'partial_refund',
-}
-
-export enum RestaurantStatus {
-  PENDING_APPROVAL = 'PENDING_APPROVAL',
-  APPROVED = 'APPROVED',
-  REJECTED = 'REJECTED',
-  SUSPENDED = 'SUSPENDED',
 }
 
 export enum SupportTicketStatus {

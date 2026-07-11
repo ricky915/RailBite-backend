@@ -20,7 +20,6 @@ export const updateRatingSchema = z.object({
 export type UpdateRatingInput = z.infer<typeof updateRatingSchema>;
 
 export const listRatingsSchema = z.object({
-  restaurantId: objectIdSchema.optional(),
   menuItemId: objectIdSchema.optional(),
   featured: z.coerce.boolean().optional(),
   page: z.coerce.number().int().positive().optional(),

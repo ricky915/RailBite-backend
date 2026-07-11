@@ -1,6 +1,5 @@
 import { PRICING } from '@/config/constants';
 import type { OrderDocument } from '@/models/Order.model';
-import { Restaurant } from '@/models/Restaurant.model';
 import { cartService } from '@/modules/cart/cart.service';
 import { couponsService } from '@/modules/coupons/coupons.service';
 import { paymentsService } from '@/modules/payments/payments.service';
@@ -14,12 +13,12 @@ const STATUS_NOTIFICATIONS: Partial<Record<OrderStatus, { event: NotificationEve
   [OrderStatus.RESTAURANT_ACCEPTED]: {
     event: NotificationEvent.ORDER_ACCEPTED,
     title: 'Order accepted',
-    body: (orderId) => `The restaurant has accepted your order ${orderId} and will start preparing it.`,
+    body: (orderId) => `Your order ${orderId} has been accepted and will start preparing shortly.`,
   },
   [OrderStatus.RESTAURANT_REJECTED]: {
     event: NotificationEvent.ORDER_REJECTED,
     title: 'Order rejected',
-    body: (orderId) => `Unfortunately your order ${orderId} was rejected by the restaurant. A refund will be initiated.`,
+    body: (orderId) => `Unfortunately your order ${orderId} could not be fulfilled. A refund will be initiated.`,
   },
   [OrderStatus.OUT_FOR_DELIVERY]: {
     event: NotificationEvent.ORDER_OUT_FOR_DELIVERY,
@@ -60,14 +59,12 @@ export const ordersService = {
     if (existing) return { order: existing, payment: null, replay: true };
 
     const validatedCart = await cartService.validateCart(input.cart, userId);
-    const restaurant = await Restaurant.findOne({ _id: validatedCart.restaurantId, isDeleted: false, isActive: true });
-    if (!restaurant) throw new NotFoundError('Restaurant is not currently available');
 
     const isCod = input.paymentMethod === 'COD';
     const paymentMode = isCod ? PaymentMode.COD : PaymentMode.ONLINE;
 
     if (isCod) {
-      if (!restaurant.codEligible) throw new BadRequestError('Cash on Delivery is not available for this restaurant');
+      if (!PRICING.COD_ELIGIBLE) throw new BadRequestError('Cash on Delivery is not available');
       if (validatedCart.grandTotal > PRICING.COD_MAX_AMOUNT_PAISE) {
         throw new BadRequestError(`Cash on Delivery is only available for orders up to ₹${PRICING.COD_MAX_AMOUNT_PAISE / 100}`);
       }
@@ -79,7 +76,6 @@ export const ordersService = {
     const order = await ordersRepository.create({
       orderId,
       passengerId: userId,
-      restaurantId: validatedCart.restaurantId,
       trainNumber: input.trainNumber,
       pnr: input.pnr,
       coach: input.coach,
@@ -127,19 +123,16 @@ export const ordersService = {
   async listForAdmin(input: ListAdminOrdersInput) {
     const page = input.page ?? 1;
     const limit = Math.min(100, input.limit ?? 20);
-    const { items, total } = await ordersRepository.listForAdmin({ status: input.status, restaurantId: input.restaurantId }, (page - 1) * limit, limit);
+    const { items, total } = await ordersRepository.listForAdmin({ status: input.status }, (page - 1) * limit, limit);
     return { items, meta: buildPaginationMeta(page, limit, total) };
   },
 
-  async getOrder(idOrOrderId: string, user: { id: string; role: UserRole; restaurantId?: string }) {
+  async getOrder(idOrOrderId: string, user: { id: string; role: UserRole }) {
     const order = await ordersRepository.findByIdOrOrderId(idOrOrderId);
     if (!order) throw new NotFoundError('Order not found');
 
     const isStaff = user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN;
-    const isRestaurantStaff =
-      (user.role === UserRole.RESTAURANT_MANAGER || user.role === UserRole.RESTAURANT_STAFF) && order.restaurantId.toString() === user.restaurantId;
-
-    if (!isStaff && !isRestaurantStaff) await assertOwnership(order, user.id);
+    if (!isStaff) await assertOwnership(order, user.id);
     return order;
   },
 
@@ -199,14 +192,9 @@ export const ordersService = {
     );
   },
 
-  async updateStatus(idOrOrderId: string, actor: { id: string; role: UserRole; restaurantId?: string }, input: UpdateOrderStatusInput) {
+  async updateStatus(idOrOrderId: string, actor: { id: string; role: UserRole }, input: UpdateOrderStatusInput) {
     const order = await ordersRepository.findByIdOrOrderId(idOrOrderId);
     if (!order) throw new NotFoundError('Order not found');
-
-    const isStaff = actor.role === UserRole.ADMIN || actor.role === UserRole.SUPER_ADMIN;
-    if (!isStaff && order.restaurantId.toString() !== actor.restaurantId) {
-      throw new ForbiddenError('You do not manage this restaurant');
-    }
 
     assertTransitionAllowed(order.status, input.status);
     const updated = await ordersRepository.appendStatus(order._id.toString(), {

@@ -13,7 +13,7 @@ import { adminOrdersRoutes, ordersRoutes } from '@/modules/orders/orders.routes'
 import { paymentsRoutes } from '@/modules/payments/payments.routes';
 import { adminRatingsRoutes, ratingsRoutes } from '@/modules/ratings/ratings.routes';
 import { reportsRoutes } from '@/modules/reports/reports.routes';
-import { adminRestaurantsRoutes, restaurantsRoutes } from '@/modules/restaurants/restaurants.routes';
+import { adminStationsRoutes, stationsRoutes } from '@/modules/stations/stations.routes';
 import { adminSupportRoutes, supportRoutes } from '@/modules/support/support.routes';
 import { trainsRoutes } from '@/modules/trains/trains.routes';
 import { adminUsersRoutes, usersRoutes } from '@/modules/users/users.routes';
@@ -25,8 +25,8 @@ apiRouter.get('/health', (_req, res) => {
 });
 
 apiRouter.use('/auth', authRoutes);
-apiRouter.use('/restaurants', restaurantsRoutes);
 apiRouter.use('/menu', menuRoutes);
+apiRouter.use('/stations', stationsRoutes);
 apiRouter.use('/trains', trainsRoutes);
 apiRouter.use('/coupons', couponsRoutes);
 apiRouter.use('/cart', cartRoutes);
@@ -39,7 +39,6 @@ apiRouter.use('/support', supportRoutes);
 apiRouter.use('/notifications', notificationsRoutes);
 apiRouter.use('/cms', cmsRoutes);
 
-apiRouter.use('/admin/restaurants', adminRestaurantsRoutes);
 apiRouter.use('/admin/coupons', adminCouponsRoutes);
 apiRouter.use('/admin/orders', adminOrdersRoutes);
 apiRouter.use('/admin/users', adminUsersRoutes);
@@ -48,4 +47,5 @@ apiRouter.use('/admin/cms', adminCmsRoutes);
 apiRouter.use('/admin/analytics', analyticsRoutes);
 apiRouter.use('/admin/reports', reportsRoutes);
 apiRouter.use('/admin/ratings', adminRatingsRoutes);
+apiRouter.use('/admin/stations', adminStationsRoutes);
 apiRouter.use('/admin', adminRoutes);

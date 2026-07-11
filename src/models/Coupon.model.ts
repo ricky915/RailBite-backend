@@ -16,7 +16,6 @@ export interface CouponDocument {
   usageLimitTotal?: number;
   usageLimitPerUser: number;
   usedCount: number;
-  applicableRestaurantIds: Types.ObjectId[];
   isActive: boolean;
   isDeleted: boolean;
   updatedBy?: Types.ObjectId;
@@ -37,7 +36,6 @@ const couponSchema = new Schema<CouponDocument>(
     usageLimitTotal: { type: Number },
     usageLimitPerUser: { type: Number, default: 1 },
     usedCount: { type: Number, default: 0 },
-    applicableRestaurantIds: { type: [Schema.Types.ObjectId], ref: 'Restaurant', default: [] },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },

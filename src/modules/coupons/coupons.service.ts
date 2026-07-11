@@ -19,15 +19,12 @@ export function computeDiscount(coupon: Pick<CouponDocument, 'discountType' | 'd
   return coupon.maxDiscountPaise ? Math.min(raw, coupon.maxDiscountPaise) : raw;
 }
 
-async function assertUsable(coupon: CouponDocument, subtotalPaise: number, restaurantId: string, userId?: string): Promise<void> {
+async function assertUsable(coupon: CouponDocument, subtotalPaise: number, userId?: string): Promise<void> {
   const now = new Date();
   if (!coupon.isActive) throw new BadRequestError('This coupon is no longer active');
   if (coupon.validFrom > now || coupon.validUntil < now) throw new BadRequestError('This coupon has expired or is not yet valid');
   if (subtotalPaise < coupon.minOrderValuePaise) {
     throw new BadRequestError(`This coupon requires a minimum order value of ₹${coupon.minOrderValuePaise / 100}`);
-  }
-  if (coupon.applicableRestaurantIds.length > 0 && !coupon.applicableRestaurantIds.some((id) => id.toString() === restaurantId)) {
-    throw new BadRequestError('This coupon is not applicable to items in your cart');
   }
   if (coupon.usageLimitTotal && coupon.usedCount >= coupon.usageLimitTotal) {
     throw new BadRequestError('This coupon has reached its usage limit');
@@ -45,10 +42,10 @@ export const couponsService = {
     return couponsRepository.listActive();
   },
 
-  async validate(code: string, subtotalPaise: number, restaurantId: string, userId?: string): Promise<DiscountResult & { coupon: CouponDocument }> {
+  async validate(code: string, subtotalPaise: number, userId?: string): Promise<DiscountResult & { coupon: CouponDocument }> {
     const coupon = await couponsRepository.findByCode(code);
     if (!coupon) throw new NotFoundError('Coupon not found');
-    await assertUsable(coupon, subtotalPaise, restaurantId, userId);
+    await assertUsable(coupon, subtotalPaise, userId);
     return { discountPaise: computeDiscount(coupon, subtotalPaise), coupon };
   },
 

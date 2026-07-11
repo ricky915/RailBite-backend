@@ -40,7 +40,7 @@ ordersRoutes.get('/', requireAuth, validate({ query: listOrdersSchema }), orders
  * @openapi
  * /orders/{id}:
  *   get:
- *     summary: Order detail (own order, or restaurant/admin staff)
+ *     summary: Order detail (own order, or admin)
  *     tags: [Orders]
  *     security: [{ bearerAuth: [] }]
  */
@@ -75,14 +75,14 @@ ordersRoutes.post('/:id/reorder', requireAuth, validate({ params: orderIdParamSc
  * @openapi
  * /orders/{id}/status:
  *   patch:
- *     summary: Progress an order's status (restaurant staff/admin, state-machine enforced)
+ *     summary: Progress an order's status (admin, state-machine enforced)
  *     tags: [Orders]
  *     security: [{ bearerAuth: [] }]
  */
 ordersRoutes.patch(
   '/:id/status',
   requireAuth,
-  requireRole(UserRole.RESTAURANT_MANAGER, UserRole.RESTAURANT_STAFF, UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validate({ params: orderIdParamSchema, body: updateOrderStatusSchema }),
   ordersController.updateStatus,
 );

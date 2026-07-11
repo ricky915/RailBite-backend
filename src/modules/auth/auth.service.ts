@@ -28,7 +28,6 @@ function toUserView(user: { _id: unknown; name: string; email: string; mobile: s
 async function issueTokenPair(
   userId: string,
   role: UserRole,
-  restaurantId: string | undefined,
   context: { ipAddress?: string; userAgent?: string },
 ): Promise<AuthTokens> {
   const expiresAt = new Date(Date.now() + parseDurationMs(config.jwt.refreshExpiry));
@@ -44,17 +43,17 @@ async function issueTokenPair(
   doc.tokenHash = sha256(refreshToken);
   await doc.save();
 
-  const accessToken = signAccessToken({ sub: userId, role, restaurantId });
+  const accessToken = signAccessToken({ sub: userId, role });
 
   return { accessToken, refreshToken };
 }
 
 async function dispatchOtp(identifier: string, code: string, purpose: OtpPurpose): Promise<void> {
-  const message = `Your RailBite OTP is ${code}. Valid for ${OTP.VALIDITY_MINUTES} minutes. Do not share this with anyone. (${purpose})`;
+  const message = `Your SR Food OTP is ${code}. Valid for ${OTP.VALIDITY_MINUTES} minutes. Do not share this with anyone. (${purpose})`;
   if (isMobileIdentifier(identifier)) {
     await sendSms(identifier, message);
   } else {
-    await sendEmail(identifier, 'Your RailBite verification code', `<p>${message}</p>`);
+    await sendEmail(identifier, 'Your SR Food verification code', `<p>${message}</p>`);
   }
 }
 
@@ -84,7 +83,7 @@ export const authService = {
       throw new TooManyRequestsError('Maximum OTP resend attempts reached — please try again later');
     }
 
-    const code = generateNumericOtp(OTP.LENGTH);
+    const code = config.otp.bypassCode ?? generateNumericOtp(OTP.LENGTH);
     const codeHash = sha256(code);
     const expiresAt = new Date(Date.now() + OTP.VALIDITY_MINUTES * 60_000);
     const resendCount = activeExisting ? activeExisting.resendCount + 1 : 0;
@@ -93,11 +92,15 @@ export const authService = {
 
     await authRepository.createOtp({ identifier: input.identifier, purpose: input.purpose as OtpPurpose, codeHash, expiresAt, resendCount });
 
-    try {
-      await dispatchOtp(input.identifier, code, input.purpose as OtpPurpose);
-    } catch (error) {
-      logger.error('Failed to dispatch OTP', { identifier: input.identifier, purpose: input.purpose, error });
-      throw new AppError(502, 'OTP_DISPATCH_FAILED', 'Could not send verification code — please try again shortly');
+    if (config.otp.bypassCode) {
+      logger.warn('OTP bypass active — dispatch skipped, fixed code in use', { identifier: input.identifier, purpose: input.purpose });
+    } else {
+      try {
+        await dispatchOtp(input.identifier, code, input.purpose as OtpPurpose);
+      } catch (error) {
+        logger.error('Failed to dispatch OTP', { identifier: input.identifier, purpose: input.purpose, error });
+        throw new AppError(502, 'OTP_DISPATCH_FAILED', 'Could not send verification code — please try again shortly');
+      }
     }
 
     return { expiresInMinutes: OTP.VALIDITY_MINUTES };
@@ -129,7 +132,7 @@ export const authService = {
       await authRepository.markVerified(user._id.toString(), 'isMobileVerified');
       await authRepository.resetFailedLoginTracking(user._id.toString());
 
-      const tokens = await issueTokenPair(user._id.toString(), user.role, user.restaurantId?.toString(), context);
+      const tokens = await issueTokenPair(user._id.toString(), user.role, context);
       return { verified: true, tokens, user: toUserView(user) };
     }
 
@@ -155,7 +158,7 @@ export const authService = {
 
     await authRepository.resetFailedLoginTracking(user._id.toString());
 
-    const tokens = await issueTokenPair(user._id.toString(), user.role, user.restaurantId?.toString(), context);
+    const tokens = await issueTokenPair(user._id.toString(), user.role, context);
     return { tokens, user: toUserView(user) };
   },
 
@@ -186,7 +189,7 @@ export const authService = {
       throw new UnauthorizedError('Account no longer active');
     }
 
-    const tokens = await issueTokenPair(user._id.toString(), user.role, user.restaurantId?.toString(), context);
+    const tokens = await issueTokenPair(user._id.toString(), user.role, context);
     const newDoc = await authRepository.findRefreshTokenById(
       verifyRefreshToken(tokens.refreshToken).tokenId,
     );
