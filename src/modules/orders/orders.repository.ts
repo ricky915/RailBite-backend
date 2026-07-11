@@ -37,9 +37,10 @@ export const ordersRepository = {
     return { items, total };
   },
 
-  async listForAdmin(filters: { status?: OrderStatus }, skip: number, limit: number) {
+  async listForAdmin(filters: { status?: OrderStatus; passengerId?: string }, skip: number, limit: number) {
     const query: FilterQuery<OrderDocument> = { isDeleted: false };
     if (filters.status) query.status = filters.status;
+    if (filters.passengerId) query.passengerId = filters.passengerId;
     const [items, total] = await Promise.all([
       Order.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
       Order.countDocuments(query),

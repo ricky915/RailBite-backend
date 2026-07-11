@@ -1,7 +1,7 @@
 import { NOTIFICATION_RETRY } from '@/config/constants';
 import { Notification } from '@/models/Notification.model';
 import { User } from '@/models/User.model';
-import { NotificationChannel, type NotificationEvent } from '@/types/domain.types';
+import { ADMIN_ROLES, NotificationChannel, type NotificationEvent } from '@/types/domain.types';
 import { logger } from '@/utils/logger';
 
 import { sendEmail } from './email.service';
@@ -61,4 +61,25 @@ export async function notifyUser(userId: string, event: NotificationEvent, title
       });
     });
   }
+}
+
+/**
+ * Fans an in-app notification out to every admin/super_admin user — used for staff-facing
+ * alerts (e.g. new order placed) where SMS/email to every admin would be excessive.
+ */
+export async function notifyAdmins(event: NotificationEvent, title: string, body: string): Promise<void> {
+  const admins = await User.find({ role: { $in: ADMIN_ROLES }, isDeleted: false }).select('_id');
+  await Promise.all(
+    admins.map((admin) =>
+      Notification.create({
+        userId: admin._id,
+        event,
+        channel: NotificationChannel.IN_APP,
+        title,
+        body,
+        dispatchStatus: 'SENT',
+        sentAt: new Date(),
+      }),
+    ),
+  );
 }

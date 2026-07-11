@@ -50,5 +50,6 @@ export const listAdminOrdersSchema = z.object({
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().optional(),
   status: z.nativeEnum(OrderStatus).optional(),
+  passengerId: z.string().trim().min(1).optional(),
 });
 export type ListAdminOrdersInput = z.infer<typeof listAdminOrdersSchema>;

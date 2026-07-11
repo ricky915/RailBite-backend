@@ -3,7 +3,7 @@ import type { OrderDocument } from '@/models/Order.model';
 import { cartService } from '@/modules/cart/cart.service';
 import { couponsService } from '@/modules/coupons/coupons.service';
 import { paymentsService } from '@/modules/payments/payments.service';
-import { notifyUser } from '@/services/notification.service';
+import { notifyAdmins, notifyUser } from '@/services/notification.service';
 import { NotificationEvent, ORDER_STATUS_TRANSITIONS, OrderStatus, PaymentMode, PaymentStatus, UserRole } from '@/types/domain.types';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '@/utils/errors';
 import { generateOrderId } from '@/utils/orderIdGenerator';
@@ -108,6 +108,11 @@ export const ordersService = {
 
     if (isCod) {
       await notifyUser(userId, NotificationEvent.ORDER_PLACED, 'Order placed', `Your order ${order.orderId} has been placed.`);
+      await notifyAdmins(
+        NotificationEvent.ORDER_PLACED,
+        'New order received',
+        `Order ${order.orderId} — ₹${(order.grandTotal / 100).toFixed(2)} (COD)`,
+      );
     }
 
     return { order, payment, replay: false };
@@ -123,7 +128,11 @@ export const ordersService = {
   async listForAdmin(input: ListAdminOrdersInput) {
     const page = input.page ?? 1;
     const limit = Math.min(100, input.limit ?? 20);
-    const { items, total } = await ordersRepository.listForAdmin({ status: input.status }, (page - 1) * limit, limit);
+    const { items, total } = await ordersRepository.listForAdmin(
+      { status: input.status, passengerId: input.passengerId },
+      (page - 1) * limit,
+      limit,
+    );
     return { items, meta: buildPaginationMeta(page, limit, total) };
   },
 
@@ -220,6 +229,11 @@ export const ordersService = {
         { paymentStatus: PaymentStatus.CAPTURED },
       );
       await notifyUser(order.passengerId.toString(), NotificationEvent.ORDER_PLACED, 'Order placed', `Your order ${order.orderId} has been placed.`);
+      await notifyAdmins(
+        NotificationEvent.ORDER_PLACED,
+        'New order received',
+        `Order ${order.orderId} — ₹${(order.grandTotal / 100).toFixed(2)}`,
+      );
       return updated;
     }
 

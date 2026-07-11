@@ -9,6 +9,7 @@ import { ordersController } from './orders.controller';
 import {
   cancelOrderSchema,
   createOrderSchema,
+  listAdminOrdersSchema,
   listOrdersSchema,
   orderIdParamSchema,
   updateOrderStatusSchema,
@@ -97,4 +98,10 @@ export const adminOrdersRoutes = Router();
  *     tags: [Orders]
  *     security: [{ bearerAuth: [] }]
  */
-adminOrdersRoutes.get('/', requireAuth, requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN), ordersController.listAdmin);
+adminOrdersRoutes.get(
+  '/',
+  requireAuth,
+  requireRole(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validate({ query: listAdminOrdersSchema }),
+  ordersController.listAdmin,
+);
