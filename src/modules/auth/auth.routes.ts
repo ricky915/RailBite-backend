@@ -24,6 +24,28 @@ export const authRoutes = Router();
  *   post:
  *     summary: Register a new passenger account and dispatch a mobile verification OTP
  *     tags: [Auth]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, email, mobile, password]
+ *             properties:
+ *               name: { type: string, minLength: 2, maxLength: 80, example: 'Asha Verma' }
+ *               email: { type: string, format: email, example: 'asha@example.com' }
+ *               mobile: { type: string, pattern: '^[6-9]\d{9}$', example: '9876543210', description: '10-digit Indian mobile number' }
+ *               password: { type: string, minLength: 8, maxLength: 72, example: 'Passw0rd!', description: 'Must contain at least one letter and one number' }
+ *     responses:
+ *       '201':
+ *         description: Registered — verification OTP sent to the mobile number
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/RegisterResponse' }
+ *       '409': { $ref: '#/components/responses/Conflict' }
+ *       '422': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/TooManyRequests' }
  */
 authRoutes.post('/register', authRateLimiter, validate({ body: registerSchema }), authController.register);
 
@@ -33,6 +55,25 @@ authRoutes.post('/register', authRateLimiter, validate({ body: registerSchema })
  *   post:
  *     summary: Send (or resend) an OTP for a given purpose
  *     tags: [Auth]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [identifier, purpose]
+ *             properties:
+ *               identifier: { type: string, example: '9876543210', description: 'Email or mobile number' }
+ *               purpose: { type: string, enum: [REGISTER, LOGIN, FORGOT_PASSWORD, CHANGE_MOBILE, SENSITIVE_ACTION] }
+ *     responses:
+ *       '200':
+ *         description: OTP sent
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/OtpSentResponse' }
+ *       '422': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/TooManyRequests' }
  */
 authRoutes.post('/send-otp', authRateLimiter, validate({ body: sendOtpSchema }), authController.sendOtp);
 
@@ -42,6 +83,27 @@ authRoutes.post('/send-otp', authRateLimiter, validate({ body: sendOtpSchema }),
  *   post:
  *     summary: Verify an OTP; issues tokens when purpose is REGISTER
  *     tags: [Auth]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [identifier, purpose, code]
+ *             properties:
+ *               identifier: { type: string, example: '9876543210' }
+ *               purpose: { type: string, enum: [REGISTER, LOGIN, FORGOT_PASSWORD, CHANGE_MOBILE, SENSITIVE_ACTION] }
+ *               code: { type: string, pattern: '^\d{6}$', example: '123456' }
+ *     responses:
+ *       '200':
+ *         description: OTP verified
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/VerifyOtpResponse' }
+ *       '400': { $ref: '#/components/responses/BadRequest' }
+ *       '422': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/TooManyRequests' }
  */
 authRoutes.post('/verify-otp', authRateLimiter, validate({ body: verifyOtpSchema }), authController.verifyOtp);
 
@@ -51,6 +113,31 @@ authRoutes.post('/verify-otp', authRateLimiter, validate({ body: verifyOtpSchema
  *   post:
  *     summary: Log in with email/mobile + password
  *     tags: [Auth]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [identifier, password]
+ *             properties:
+ *               identifier: { type: string, example: 'asha@example.com', description: 'Email or mobile number' }
+ *               password: { type: string, example: 'Passw0rd!' }
+ *     responses:
+ *       '200':
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/LoginResponse' }
+ *       '401': { $ref: '#/components/responses/Unauthorized' }
+ *       '403':
+ *         description: Account locked due to repeated failed logins
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
+ *       '422': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/TooManyRequests' }
  */
 authRoutes.post('/login', authRateLimiter, validate({ body: loginSchema }), authController.login);
 
@@ -60,6 +147,24 @@ authRoutes.post('/login', authRateLimiter, validate({ body: loginSchema }), auth
  *   post:
  *     summary: Rotate a refresh token for a new access/refresh pair
  *     tags: [Auth]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [refreshToken]
+ *             properties:
+ *               refreshToken: { type: string }
+ *     responses:
+ *       '200':
+ *         description: Token refreshed
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/TokensResponse' }
+ *       '401': { $ref: '#/components/responses/Unauthorized' }
+ *       '422': { $ref: '#/components/responses/ValidationError' }
  */
 authRoutes.post('/refresh', validate({ body: refreshSchema }), authController.refresh);
 
@@ -70,6 +175,23 @@ authRoutes.post('/refresh', validate({ body: refreshSchema }), authController.re
  *     summary: Revoke a refresh token
  *     tags: [Auth]
  *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [refreshToken]
+ *             properties:
+ *               refreshToken: { type: string }
+ *     responses:
+ *       '200':
+ *         description: Logged out
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/NullDataResponse' }
+ *       '401': { $ref: '#/components/responses/Unauthorized' }
+ *       '422': { $ref: '#/components/responses/ValidationError' }
  */
 authRoutes.post('/logout', requireAuth, validate({ body: logoutSchema }), authController.logout);
 
@@ -79,6 +201,24 @@ authRoutes.post('/logout', requireAuth, validate({ body: logoutSchema }), authCo
  *   post:
  *     summary: Request a password-reset OTP
  *     tags: [Auth]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [identifier]
+ *             properties:
+ *               identifier: { type: string, example: 'asha@example.com', description: 'Email or mobile number' }
+ *     responses:
+ *       '200':
+ *         description: If an account exists, an OTP has been sent (response is identical either way to avoid leaking account existence)
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/OtpSentResponse' }
+ *       '422': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/TooManyRequests' }
  */
 authRoutes.post('/forgot-password', authRateLimiter, validate({ body: forgotPasswordSchema }), authController.forgotPassword);
 
@@ -88,5 +228,26 @@ authRoutes.post('/forgot-password', authRateLimiter, validate({ body: forgotPass
  *   post:
  *     summary: Reset password using a verified OTP
  *     tags: [Auth]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [identifier, code, newPassword]
+ *             properties:
+ *               identifier: { type: string, example: 'asha@example.com' }
+ *               code: { type: string, pattern: '^\d{6}$', example: '123456' }
+ *               newPassword: { type: string, minLength: 8, maxLength: 72, example: 'N3wPassw0rd!' }
+ *     responses:
+ *       '200':
+ *         description: Password reset successful
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/NullDataResponse' }
+ *       '400': { $ref: '#/components/responses/BadRequest' }
+ *       '422': { $ref: '#/components/responses/ValidationError' }
+ *       '429': { $ref: '#/components/responses/TooManyRequests' }
  */
 authRoutes.post('/reset-password', authRateLimiter, validate({ body: resetPasswordSchema }), authController.resetPassword);
