@@ -28,18 +28,9 @@ export const config = {
     apiKey: env.CLOUDINARY_API_KEY,
     apiSecret: env.CLOUDINARY_API_SECRET,
   },
-  upi: {
-    vpa: env.UPI_VPA,
-    payeeName: env.UPI_PAYEE_NAME,
-  },
   msg91: {
     authKey: env.MSG91_AUTH_KEY,
     senderId: env.MSG91_SENDER_ID,
-  },
-  twilio: {
-    accountSid: env.TWILIO_ACCOUNT_SID,
-    authToken: env.TWILIO_AUTH_TOKEN,
-    verifyServiceSid: env.TWILIO_VERIFY_SERVICE_SID,
   },
   sendgrid: {
     apiKey: env.SENDGRID_API_KEY,
@@ -62,9 +53,5 @@ export const config = {
   },
   swagger: {
     enabled: env.SWAGGER_ENABLED,
-  },
-  otp: {
-    // Forced off in production no matter what OTP_BYPASS_CODE is set to.
-    bypassCode: env.NODE_ENV === 'production' ? undefined : env.OTP_BYPASS_CODE,
   },
 } as const;

@@ -12,5 +12,3 @@ export interface AuthenticatedUserView {
   mobile: string;
   role: UserRole;
 }
-
-export type OtpPurposeValue = 'REGISTER' | 'LOGIN' | 'FORGOT_PASSWORD' | 'CHANGE_MOBILE' | 'SENSITIVE_ACTION';

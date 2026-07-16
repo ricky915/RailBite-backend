@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
 const MOBILE_REGEX = /^[6-9]\d{9}$/;
-const OTP_PURPOSES = ['REGISTER', 'LOGIN', 'FORGOT_PASSWORD', 'CHANGE_MOBILE', 'SENSITIVE_ACTION'] as const;
 
 const passwordSchema = z
   .string()
@@ -23,19 +22,6 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
-export const sendOtpSchema = z.object({
-  identifier: z.string().trim().min(3).max(200),
-  purpose: z.enum(OTP_PURPOSES),
-});
-export type SendOtpInput = z.infer<typeof sendOtpSchema>;
-
-export const verifyOtpSchema = z.object({
-  identifier: z.string().trim().min(3).max(200),
-  purpose: z.enum(OTP_PURPOSES),
-  code: z.string().trim().length(6).regex(/^\d{6}$/),
-});
-export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
-
 export const refreshSchema = z.object({
   refreshToken: z.string().min(1),
 });
@@ -45,15 +31,3 @@ export const logoutSchema = z.object({
   refreshToken: z.string().min(1),
 });
 export type LogoutInput = z.infer<typeof logoutSchema>;
-
-export const forgotPasswordSchema = z.object({
-  identifier: z.string().trim().min(3).max(200),
-});
-export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
-
-export const resetPasswordSchema = z.object({
-  identifier: z.string().trim().min(3).max(200),
-  code: z.string().trim().length(6).regex(/^\d{6}$/),
-  newPassword: passwordSchema,
-});
-export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

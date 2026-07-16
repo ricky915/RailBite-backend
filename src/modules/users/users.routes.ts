@@ -11,7 +11,6 @@ import { usersController } from './users.controller';
 import {
   changeMobileSchema,
   changePasswordSchema,
-  deleteAccountSchema,
   listUsersSchema,
   updateNotificationSettingsSchema,
   updatePreferencesSchema,
@@ -101,26 +100,9 @@ usersRoutes.patch('/me/password', requireAuth, validate({ body: changePasswordSc
 
 /**
  * @openapi
- * /users/me/mobile/send-otp:
- *   post:
- *     summary: Send OTP to new mobile number
- *     tags: [Users]
- *     security: [{ bearerAuth: [] }]
- *     responses:
- *       '200':
- *         description: OTP sent to new mobile number
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/OtpSentResponse' }
- *       '401': { $ref: '#/components/responses/Unauthorized' }
- */
-usersRoutes.post('/me/mobile/send-otp', requireAuth, usersController.requestMobileChangeOtp);
-
-/**
- * @openapi
  * /users/me/mobile:
  *   patch:
- *     summary: Change mobile number (OTP-verified)
+ *     summary: Change mobile number
  *     tags: [Users]
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
@@ -129,10 +111,9 @@ usersRoutes.post('/me/mobile/send-otp', requireAuth, usersController.requestMobi
  *         application/json:
  *           schema:
  *             type: object
- *             required: [newMobile, otpCode]
+ *             required: [newMobile]
  *             properties:
  *               newMobile: { type: string, pattern: '^[6-9]\d{9}$', example: '9876543211' }
- *               otpCode: { type: string, pattern: '^\d{6}$', example: '123456' }
  *     responses:
  *       '200':
  *         description: Mobile number updated
@@ -234,37 +215,11 @@ usersRoutes.post('/me/photo', requireAuth, upload.single('photo'), usersControll
 
 /**
  * @openapi
- * /users/me/request-deletion-otp:
- *   post:
- *     summary: Send OTP required to confirm account deletion
- *     tags: [Users]
- *     security: [{ bearerAuth: [] }]
- *     responses:
- *       '200':
- *         description: OTP sent to confirm account deletion
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/OtpSentResponse' }
- *       '401': { $ref: '#/components/responses/Unauthorized' }
- */
-usersRoutes.post('/me/request-deletion-otp', requireAuth, usersController.requestDeletionOtp);
-
-/**
- * @openapi
  * /users/me:
  *   delete:
- *     summary: Delete own account (OTP-verified, DPDPA)
+ *     summary: Delete own account (DPDPA)
  *     tags: [Users]
  *     security: [{ bearerAuth: [] }]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [otpCode]
- *             properties:
- *               otpCode: { type: string, pattern: '^\d{6}$', example: '123456' }
  *     responses:
  *       '200':
  *         description: Account deleted
@@ -272,9 +227,8 @@ usersRoutes.post('/me/request-deletion-otp', requireAuth, usersController.reques
  *           application/json:
  *             schema: { $ref: '#/components/schemas/NullDataResponse' }
  *       '401': { $ref: '#/components/responses/Unauthorized' }
- *       '422': { $ref: '#/components/responses/ValidationError' }
  */
-usersRoutes.delete('/me', requireAuth, validate({ body: deleteAccountSchema }), usersController.deleteAccount);
+usersRoutes.delete('/me', requireAuth, usersController.deleteAccount);
 
 export const adminUsersRoutes = Router();
 

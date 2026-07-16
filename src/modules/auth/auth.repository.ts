@@ -44,10 +44,6 @@ export const authRepository = {
     await User.findByIdAndUpdate(userId, { passwordHash });
   },
 
-  async markVerified(userId: string, field: 'isMobileVerified' | 'isEmailVerified') {
-    await User.findByIdAndUpdate(userId, { [field]: true });
-  },
-
   async createRefreshToken(data: { userId: string; tokenHash: string; expiresAt: Date; ipAddress?: string; userAgent?: string }) {
     return RefreshToken.create(data);
   },

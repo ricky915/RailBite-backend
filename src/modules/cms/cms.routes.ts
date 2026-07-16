@@ -244,7 +244,7 @@ adminCmsRoutes.put('/terms', requireAuth, requireRole(...adminRoles), validate({
  *         application/json:
  *           schema:
  *             type: object
- *             required: [social, contactEmail, contactPhone, contactAddress, whatsappNumber]
+ *             required: [social, contactEmail, contactPhone, contactAddress, whatsappNumber, upiVpa, upiPayeeName]
  *             properties:
  *               social:
  *                 type: object
@@ -257,6 +257,8 @@ adminCmsRoutes.put('/terms', requireAuth, requireRole(...adminRoles), validate({
  *               contactPhone: { type: string }
  *               contactAddress: { type: string, maxLength: 300 }
  *               whatsappNumber: { type: string, minLength: 8, description: 'Include country code' }
+ *               upiVpa: { type: string, example: 'srfood@ybl', description: 'UPI ID that receives customer payments — used to build the payment link on every order' }
+ *               upiPayeeName: { type: string, maxLength: 100, example: 'SR Food' }
  *     responses:
  *       '200':
  *         description: Site settings updated

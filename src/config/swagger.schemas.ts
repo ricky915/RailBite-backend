@@ -67,8 +67,6 @@ const User: Schema = {
     email: { type: 'string', format: 'email', nullable: true, description: 'Optional — accounts register with mobile only' },
     mobile: { type: 'string', example: '9876543210' },
     role: { type: 'string', enum: ['PASSENGER', 'SUPPORT_EXEC', 'ADMIN', 'SUPER_ADMIN'] },
-    isEmailVerified: { type: 'boolean' },
-    isMobileVerified: { type: 'boolean' },
     isBlocked: { type: 'boolean' },
     profilePhotoUrl: { type: 'string', format: 'uri', nullable: true },
     preferences: {
@@ -347,7 +345,6 @@ const Notification: Schema = {
         'ORDER_CANCELLED',
         'REFUND_PROCESSED',
         'SUPPORT_TICKET_UPDATED',
-        'ACCOUNT_OTP',
       ],
     },
     channel: { type: 'string', enum: ['SMS', 'EMAIL', 'IN_APP'] },
@@ -569,6 +566,8 @@ const CmsSettings: Schema = {
     contactPhone: { type: 'string' },
     contactAddress: { type: 'string' },
     whatsappNumber: { type: 'string' },
+    upiVpa: { type: 'string', example: 'srfood@ybl', description: 'UPI ID that receives customer payments' },
+    upiPayeeName: { type: 'string', example: 'SR Food' },
   },
 };
 
@@ -735,23 +734,6 @@ export const schemas: Record<string, Schema> = {
   CmsLegalResponse: success(ref('CmsLegal')),
   CmsSettingsResponse: success(ref('CmsSettings')),
 
-  RegisterResponse: success({
-    type: 'object',
-    properties: { userId: objectId() },
-  }),
-  OtpSentResponse: success({
-    type: 'object',
-    properties: { expiresInMinutes: { type: 'integer', example: 10 } },
-  }),
-  VerifyOtpResponse: success({
-    type: 'object',
-    properties: {
-      verified: { type: 'boolean', example: true },
-      tokens: ref('AuthTokens'),
-      user: ref('AuthenticatedUserView'),
-    },
-    description: 'tokens/user are only present when purpose was REGISTER',
-  }),
   LoginResponse: success({
     type: 'object',
     properties: { tokens: ref('AuthTokens'), user: ref('AuthenticatedUserView') },

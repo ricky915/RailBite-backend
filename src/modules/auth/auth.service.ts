@@ -1,21 +1,12 @@
-import { AUTH_LOCKOUT, OTP } from '@/config/constants';
+import { AUTH_LOCKOUT } from '@/config/constants';
 import { config } from '@/config/index';
-import { checkOtpVerification, startOtpVerification } from '@/services/twilio.service';
 import type { UserRole } from '@/types/domain.types';
-import { BadRequestError, ConflictError, ForbiddenError, UnauthorizedError } from '@/utils/errors';
+import { ConflictError, ForbiddenError, UnauthorizedError } from '@/utils/errors';
 import { comparePassword, hashPassword, sha256 } from '@/utils/hash';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '@/utils/jwt';
-import { logger } from '@/utils/logger';
 import { parseDurationMs } from '@/utils/time';
 
-import type {
-  ForgotPasswordInput,
-  LoginInput,
-  RegisterInput,
-  ResetPasswordInput,
-  SendOtpInput,
-  VerifyOtpInput,
-} from './auth.dto';
+import type { LoginInput, RegisterInput } from './auth.dto';
 import { authRepository } from './auth.repository';
 import type { AuthenticatedUserView, AuthTokens } from './auth.types';
 
@@ -46,71 +37,21 @@ async function issueTokenPair(
   return { accessToken, refreshToken };
 }
 
-/** Every OTP purpose (register/forgot-password/change-mobile/sensitive-action) targets a mobile
- * number — Twilio Verify owns generation, storage, and expiry of the code entirely on its side. */
-async function checkOtp(identifier: string, code: string): Promise<boolean> {
-  if (config.otp.bypassCode) return code === config.otp.bypassCode;
-  return checkOtpVerification(identifier, code);
-}
-
 export const authService = {
-  async register(input: RegisterInput): Promise<{ userId: string }> {
+  async register(
+    input: RegisterInput,
+    context: { ipAddress?: string; userAgent?: string },
+  ): Promise<{ tokens: AuthTokens; user: AuthenticatedUserView }> {
     const existing = await authRepository.findByMobile(input.mobile);
-    if (existing?.isMobileVerified) {
+    if (existing) {
       throw new ConflictError('An account with this mobile number already exists');
     }
 
     const passwordHash = await hashPassword(input.password);
-    let userId: string;
-    if (existing) {
-      // A previous registration attempt never completed OTP verification — update details and
-      // resend rather than permanently blocking this mobile number behind a stuck account.
-      existing.name = input.name;
-      existing.passwordHash = passwordHash;
-      await existing.save();
-      userId = existing._id.toString();
-    } else {
-      const user = await authRepository.createUser({ name: input.name, mobile: input.mobile, passwordHash });
-      userId = user._id.toString();
-    }
+    const user = await authRepository.createUser({ name: input.name, mobile: input.mobile, passwordHash });
 
-    await this.sendOtp({ identifier: input.mobile, purpose: 'REGISTER' });
-
-    return { userId };
-  },
-
-  async sendOtp(input: SendOtpInput): Promise<{ expiresInMinutes: number }> {
-    if (config.otp.bypassCode) {
-      logger.warn('OTP bypass active — Twilio dispatch skipped, fixed code in use', {
-        identifier: input.identifier,
-        purpose: input.purpose,
-      });
-      return { expiresInMinutes: OTP.VALIDITY_MINUTES };
-    }
-
-    await startOtpVerification(input.identifier);
-    return { expiresInMinutes: OTP.VALIDITY_MINUTES };
-  },
-
-  async verifyOtp(
-    input: VerifyOtpInput,
-    context: { ipAddress?: string; userAgent?: string },
-  ): Promise<{ verified: true; tokens?: AuthTokens; user?: AuthenticatedUserView }> {
-    const approved = await checkOtp(input.identifier, input.code);
-    if (!approved) throw new BadRequestError('Incorrect or expired OTP');
-
-    if (input.purpose === 'REGISTER') {
-      const user = await authRepository.findByIdentifier(input.identifier);
-      if (!user) throw new BadRequestError('No pending registration found for this identifier');
-
-      await authRepository.markVerified(user._id.toString(), 'isMobileVerified');
-      await authRepository.resetFailedLoginTracking(user._id.toString());
-
-      const tokens = await issueTokenPair(user._id.toString(), user.role, context);
-      return { verified: true, tokens, user: toUserView(user) };
-    }
-
-    return { verified: true };
+    const tokens = await issueTokenPair(user._id.toString(), user.role, context);
+    return { tokens, user: toUserView(user) };
   },
 
   async login(input: LoginInput, context: { ipAddress?: string; userAgent?: string }): Promise<{ tokens: AuthTokens; user: AuthenticatedUserView }> {
@@ -179,26 +120,5 @@ export const authService = {
     } catch {
       // Idempotent — an already-invalid token still counts as "logged out".
     }
-  },
-
-  async forgotPassword(input: ForgotPasswordInput): Promise<{ expiresInMinutes: number }> {
-    const user = await authRepository.findByIdentifier(input.identifier);
-    if (!user) {
-      // Do not reveal account existence — respond as if it succeeded.
-      return { expiresInMinutes: OTP.VALIDITY_MINUTES };
-    }
-    return this.sendOtp({ identifier: input.identifier, purpose: 'FORGOT_PASSWORD' });
-  },
-
-  async resetPassword(input: ResetPasswordInput): Promise<void> {
-    const approved = await checkOtp(input.identifier, input.code);
-    if (!approved) throw new BadRequestError('Incorrect or expired OTP');
-
-    const user = await authRepository.findByIdentifier(input.identifier);
-    if (!user) throw new BadRequestError('No account found for this identifier');
-
-    const passwordHash = await hashPassword(input.newPassword);
-    await authRepository.updatePasswordHash(user._id.toString(), passwordHash);
-    await authRepository.revokeAllRefreshTokensForUser(user._id.toString());
   },
 };

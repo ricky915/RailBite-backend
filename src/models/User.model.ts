@@ -21,8 +21,6 @@ export interface UserDocument {
   mobile: string;
   passwordHash: string;
   role: UserRole;
-  isEmailVerified: boolean;
-  isMobileVerified: boolean;
   isBlocked: boolean;
   isDeleted: boolean;
   profilePhotoUrl?: string;
@@ -42,8 +40,6 @@ const userSchema = new Schema<UserDocument>(
     mobile: { type: String, required: true, unique: true, trim: true },
     passwordHash: { type: String, required: true, select: false },
     role: { type: String, enum: Object.values(UserRole), default: UserRole.PASSENGER, required: true },
-    isEmailVerified: { type: Boolean, default: false },
-    isMobileVerified: { type: Boolean, default: false },
     isBlocked: { type: Boolean, default: false },
     isDeleted: { type: Boolean, default: false },
     profilePhotoUrl: { type: String },
