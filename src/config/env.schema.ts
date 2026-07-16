@@ -22,6 +22,10 @@ const envSchema = z.object({
   MSG91_AUTH_KEY: z.string().optional().default(''),
   MSG91_SENDER_ID: z.string().optional().default(''),
 
+  TWILIO_ACCOUNT_SID: z.string().optional().default(''),
+  TWILIO_AUTH_TOKEN: z.string().optional().default(''),
+  TWILIO_VERIFY_SERVICE_SID: z.string().optional().default(''),
+
   SENDGRID_API_KEY: z.string().optional().default(''),
   SENDGRID_FROM_EMAIL: z.string().optional().default('no-reply@srfood.example'),
 

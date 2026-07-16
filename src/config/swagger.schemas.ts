@@ -64,7 +64,7 @@ const User: Schema = {
   properties: {
     _id: objectId(),
     name: { type: 'string', example: 'Asha Verma' },
-    email: { type: 'string', format: 'email' },
+    email: { type: 'string', format: 'email', nullable: true, description: 'Optional — accounts register with mobile only' },
     mobile: { type: 'string', example: '9876543210' },
     role: { type: 'string', enum: ['PASSENGER', 'SUPPORT_EXEC', 'ADMIN', 'SUPER_ADMIN'] },
     isEmailVerified: { type: 'boolean' },
@@ -589,7 +589,7 @@ const AuthenticatedUserView: Schema = {
   properties: {
     id: objectId(),
     name: { type: 'string' },
-    email: { type: 'string', format: 'email' },
+    email: { type: 'string', format: 'email', nullable: true },
     mobile: { type: 'string' },
     role: { type: 'string', enum: ['PASSENGER', 'SUPPORT_EXEC', 'ADMIN', 'SUPER_ADMIN'] },
   },

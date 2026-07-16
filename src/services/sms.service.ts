@@ -3,7 +3,8 @@ import axios from 'axios';
 import { config } from '@/config/index';
 import { logger } from '@/utils/logger';
 
-/** Real MSG91 v2 SMS send API (https://api.msg91.com/api/v2/sendsms) — no mock fallback. */
+/** Real MSG91 v2 SMS send API (https://api.msg91.com/api/v2/sendsms) — no mock fallback. Used
+ * for general notifications only; OTP dispatch goes through Twilio Verify (twilio.service.ts). */
 export async function sendSms(toMobile: string, message: string): Promise<void> {
   try {
     await axios.post(

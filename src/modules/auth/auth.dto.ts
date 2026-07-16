@@ -12,7 +12,6 @@ const passwordSchema = z
 
 export const registerSchema = z.object({
   name: z.string().trim().min(2).max(80),
-  email: z.string().trim().toLowerCase().email().max(200),
   mobile: z.string().trim().regex(MOBILE_REGEX, 'Mobile must be a valid 10-digit Indian number'),
   password: passwordSchema,
 });

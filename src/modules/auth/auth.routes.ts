@@ -22,7 +22,8 @@ export const authRoutes = Router();
  * @openapi
  * /auth/register:
  *   post:
- *     summary: Register a new passenger account and dispatch a mobile verification OTP
+ *     summary: Register a new passenger account and dispatch a mobile verification OTP (via Twilio Verify)
+ *     description: If this mobile number already has an unverified account (a previous registration that never completed OTP verification), this updates that account's name/password and resends the OTP instead of blocking — only a fully mobile-verified account triggers a 409 Conflict.
  *     tags: [Auth]
  *     security: []
  *     requestBody:
@@ -31,19 +32,22 @@ export const authRoutes = Router();
  *         application/json:
  *           schema:
  *             type: object
- *             required: [name, email, mobile, password]
+ *             required: [name, mobile, password]
  *             properties:
  *               name: { type: string, minLength: 2, maxLength: 80, example: 'Asha Verma' }
- *               email: { type: string, format: email, example: 'asha@example.com' }
- *               mobile: { type: string, pattern: '^[6-9]\d{9}$', example: '9876543210', description: '10-digit Indian mobile number' }
+ *               mobile: { type: string, pattern: '^[6-9]\d{9}$', example: '9876543210', description: '10-digit Indian mobile number — the only login identifier' }
  *               password: { type: string, minLength: 8, maxLength: 72, example: 'Passw0rd!', description: 'Must contain at least one letter and one number' }
  *     responses:
  *       '201':
- *         description: Registered — verification OTP sent to the mobile number
+ *         description: Registered — verification OTP sent to the mobile number via Twilio
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/RegisterResponse' }
- *       '409': { $ref: '#/components/responses/Conflict' }
+ *       '409':
+ *         description: An already mobile-verified account exists with this number
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
  *       '422': { $ref: '#/components/responses/ValidationError' }
  *       '429': { $ref: '#/components/responses/TooManyRequests' }
  */
@@ -53,7 +57,7 @@ authRoutes.post('/register', authRateLimiter, validate({ body: registerSchema })
  * @openapi
  * /auth/send-otp:
  *   post:
- *     summary: Send (or resend) an OTP for a given purpose
+ *     summary: Send (or resend) an OTP for a given purpose (via Twilio Verify)
  *     tags: [Auth]
  *     security: []
  *     requestBody:
@@ -64,7 +68,7 @@ authRoutes.post('/register', authRateLimiter, validate({ body: registerSchema })
  *             type: object
  *             required: [identifier, purpose]
  *             properties:
- *               identifier: { type: string, example: '9876543210', description: 'Email or mobile number' }
+ *               identifier: { type: string, example: '9876543210', description: 'Mobile number' }
  *               purpose: { type: string, enum: [REGISTER, LOGIN, FORGOT_PASSWORD, CHANGE_MOBILE, SENSITIVE_ACTION] }
  *     responses:
  *       '200':
@@ -111,7 +115,7 @@ authRoutes.post('/verify-otp', authRateLimiter, validate({ body: verifyOtpSchema
  * @openapi
  * /auth/login:
  *   post:
- *     summary: Log in with email/mobile + password
+ *     summary: Log in with mobile number + password
  *     tags: [Auth]
  *     security: []
  *     requestBody:
@@ -122,7 +126,7 @@ authRoutes.post('/verify-otp', authRateLimiter, validate({ body: verifyOtpSchema
  *             type: object
  *             required: [identifier, password]
  *             properties:
- *               identifier: { type: string, example: 'asha@example.com', description: 'Email or mobile number' }
+ *               identifier: { type: string, example: '9876543210', description: 'Mobile number (field accepts email too, for legacy/admin accounts)' }
  *               password: { type: string, example: 'Passw0rd!' }
  *     responses:
  *       '200':
@@ -199,7 +203,7 @@ authRoutes.post('/logout', requireAuth, validate({ body: logoutSchema }), authCo
  * @openapi
  * /auth/forgot-password:
  *   post:
- *     summary: Request a password-reset OTP
+ *     summary: Request a password-reset OTP (sent via Twilio to the registered mobile number)
  *     tags: [Auth]
  *     security: []
  *     requestBody:
@@ -210,7 +214,7 @@ authRoutes.post('/logout', requireAuth, validate({ body: logoutSchema }), authCo
  *             type: object
  *             required: [identifier]
  *             properties:
- *               identifier: { type: string, example: 'asha@example.com', description: 'Email or mobile number' }
+ *               identifier: { type: string, example: '9876543210', description: 'Registered mobile number' }
  *     responses:
  *       '200':
  *         description: If an account exists, an OTP has been sent (response is identical either way to avoid leaking account existence)
@@ -226,7 +230,7 @@ authRoutes.post('/forgot-password', authRateLimiter, validate({ body: forgotPass
  * @openapi
  * /auth/reset-password:
  *   post:
- *     summary: Reset password using a verified OTP
+ *     summary: Reset password using a verified OTP (via Twilio Verify)
  *     tags: [Auth]
  *     security: []
  *     requestBody:
@@ -237,7 +241,7 @@ authRoutes.post('/forgot-password', authRateLimiter, validate({ body: forgotPass
  *             type: object
  *             required: [identifier, code, newPassword]
  *             properties:
- *               identifier: { type: string, example: 'asha@example.com' }
+ *               identifier: { type: string, example: '9876543210', description: 'Registered mobile number' }
  *               code: { type: string, pattern: '^\d{6}$', example: '123456' }
  *               newPassword: { type: string, minLength: 8, maxLength: 72, example: 'N3wPassw0rd!' }
  *     responses:

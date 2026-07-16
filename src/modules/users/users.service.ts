@@ -78,13 +78,13 @@ export const usersService = {
   async requestDeletionOtp(userId: string) {
     const user = await usersRepository.findById(userId);
     if (!user) throw new NotFoundError('User not found');
-    return authService.sendOtp({ identifier: user.email, purpose: 'SENSITIVE_ACTION' });
+    return authService.sendOtp({ identifier: user.mobile, purpose: 'SENSITIVE_ACTION' });
   },
 
   async deleteAccount(userId: string, otpCode: string) {
     const user = await usersRepository.findById(userId);
     if (!user) throw new NotFoundError('User not found');
-    await authService.verifyOtp({ identifier: user.email, purpose: 'SENSITIVE_ACTION', code: otpCode }, {});
+    await authService.verifyOtp({ identifier: user.mobile, purpose: 'SENSITIVE_ACTION', code: otpCode }, {});
     await usersRepository.softDelete(userId);
   },
 

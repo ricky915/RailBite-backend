@@ -8,7 +8,7 @@ export interface AuthTokens {
 export interface AuthenticatedUserView {
   id: string;
   name: string;
-  email: string;
+  email?: string;
   mobile: string;
   role: UserRole;
 }

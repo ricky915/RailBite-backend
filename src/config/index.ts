@@ -36,6 +36,11 @@ export const config = {
     authKey: env.MSG91_AUTH_KEY,
     senderId: env.MSG91_SENDER_ID,
   },
+  twilio: {
+    accountSid: env.TWILIO_ACCOUNT_SID,
+    authToken: env.TWILIO_AUTH_TOKEN,
+    verifyServiceSid: env.TWILIO_VERIFY_SERVICE_SID,
+  },
   sendgrid: {
     apiKey: env.SENDGRID_API_KEY,
     fromEmail: env.SENDGRID_FROM_EMAIL,
