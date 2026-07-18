@@ -23,11 +23,10 @@ export const supportRoutes = Router();
  *         application/json:
  *           schema:
  *             type: object
- *             required: [name, email, subject, message]
+ *             required: [name, phone, subject, message]
  *             properties:
  *               name: { type: string, minLength: 2, maxLength: 80 }
- *               email: { type: string, format: email }
- *               phone: { type: string }
+ *               phone: { type: string, pattern: '^[6-9]\d{9}$', example: '9876543210' }
  *               subject: { type: string, minLength: 3, maxLength: 200 }
  *               message: { type: string, minLength: 5, maxLength: 1000 }
  *               category: { type: string, maxLength: 50, example: 'GENERAL' }

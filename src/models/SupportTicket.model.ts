@@ -8,8 +8,7 @@ export interface SupportTicketDocument {
   ticketNumber: string;
   userId?: Types.ObjectId;
   name: string;
-  email: string;
-  phone?: string;
+  phone: string;
   subject: string;
   message: string;
   category: string;
@@ -28,8 +27,7 @@ const supportTicketSchema = new Schema<SupportTicketDocument>(
     ticketNumber: { type: String, required: true, unique: true },
     userId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
     name: { type: String, required: true, trim: true, maxlength: 80 },
-    email: { type: String, required: true, trim: true, lowercase: true },
-    phone: { type: String },
+    phone: { type: String, required: true, trim: true },
     subject: { type: String, required: true, maxlength: 200 },
     message: { type: String, required: true, minlength: 5, maxlength: 1000 },
     category: { type: String, default: 'GENERAL' },

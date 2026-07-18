@@ -8,8 +8,7 @@ export const ticketIdParamSchema = z.object({
 
 export const createTicketSchema = z.object({
   name: z.string().trim().min(2).max(80),
-  email: z.string().trim().toLowerCase().email().max(200),
-  phone: z.string().trim().optional(),
+  phone: z.string().trim().regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit mobile number'),
   subject: z.string().trim().min(3).max(200),
   message: z.string().trim().min(5).max(1000),
   category: z.string().trim().max(50).optional(),

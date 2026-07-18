@@ -7,18 +7,12 @@ import { OrderStatus, PaymentMethod } from '@/types/domain.types';
 export const createOrderSchema = z.object({
   cart: validateCartSchema,
   paymentMethod: z.nativeEnum(PaymentMethod),
-  pnr: z
-    .string()
-    .trim()
-    .regex(/^\d{10}$/, 'PNR must be exactly 10 digits')
-    .optional(),
-  coach: z.string().trim().max(6).optional(),
-  seat: z.string().trim().max(4).optional(),
   trainNumber: z
     .string()
     .trim()
-    .regex(/^\d{4,5}$/)
-    .optional(),
+    .regex(/^\d{4,5}$/, 'Train number must be 4-5 digits'),
+  coach: z.string().trim().max(6).optional(),
+  seat: z.string().trim().max(4).optional(),
   boardingStation: z.string().trim().max(60).optional(),
   deliveryStation: z.string().trim().min(2).max(60),
 });

@@ -77,7 +77,6 @@ export const ordersService = {
       orderId,
       passengerId: userId,
       trainNumber: input.trainNumber,
-      pnr: input.pnr,
       coach: input.coach,
       seat: input.seat,
       boardingStation: input.boardingStation,

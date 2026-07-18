@@ -37,7 +37,7 @@ export const ordersRoutes = Router();
  *         application/json:
  *           schema:
  *             type: object
- *             required: [cart, paymentMethod, deliveryStation]
+ *             required: [cart, paymentMethod, trainNumber, deliveryStation]
  *             properties:
  *               cart:
  *                 type: object
@@ -63,10 +63,9 @@ export const ordersRoutes = Router();
  *                         specialNote: { type: string, maxLength: 300 }
  *                   couponCode: { type: string, example: 'WELCOME50' }
  *               paymentMethod: { type: string, enum: [UPI, COD] }
- *               pnr: { type: string, pattern: '^\d{10}$', example: '1234567890' }
+ *               trainNumber: { type: string, pattern: '^\d{4,5}$', example: '12345' }
  *               coach: { type: string, maxLength: 6, example: 'B4' }
  *               seat: { type: string, maxLength: 4, example: '32' }
- *               trainNumber: { type: string, pattern: '^\d{4,5}$', example: '12345' }
  *               boardingStation: { type: string, maxLength: 60 }
  *               deliveryStation: { type: string, minLength: 2, maxLength: 60, example: 'NDLS' }
  *     responses:

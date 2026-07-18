@@ -31,7 +31,6 @@ export interface OrderDocument {
   orderId: string;
   passengerId: Types.ObjectId;
   trainNumber?: string;
-  pnr?: string;
   coach?: string;
   seat?: string;
   boardingStation?: string;
@@ -93,7 +92,6 @@ const orderSchema = new Schema<OrderDocument>(
     orderId: { type: String, required: true, unique: true },
     passengerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     trainNumber: { type: String },
-    pnr: { type: String },
     coach: { type: String },
     seat: { type: String },
     boardingStation: { type: String },
